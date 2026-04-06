@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "WebFetch(www.npmjs.com)",
+      "WebSearch",
+      "WebFetch(www.honeybadger.io)",
+      "WebFetch(github.com)",
+      "Bash(npm uninstall *)",
+      "Bash(echo *)",
+      "Bash(git init)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
+    ]
+  },
+  "$version": 3
+}
