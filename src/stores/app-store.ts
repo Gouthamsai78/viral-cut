@@ -10,9 +10,10 @@ interface PipelineStep {
 }
 
 interface AppStore {
-  // Video input
-  videoUrl: string;
+  // Unified inputs
   videoFile: File | null;
+  images: File[];
+  prompt: string;
 
   // Pipeline state
   status: PipelineStatus;
@@ -25,55 +26,60 @@ interface AppStore {
   remotionOutput: RemotionOutput | null;
 
   // Actions
-  setVideoUrl: (url: string) => void;
   setVideoFile: (file: File | null) => void;
-  runPipeline: (videoUrl?: string) => Promise<void>;
+  setImages: (images: File[]) => void;
+  setPrompt: (prompt: string) => void;
+  runPipeline: () => Promise<void>;
   reset: () => void;
 }
 
-const INITIAL_STEPS: PipelineStep[] = [
-  { name: 'Video Analyzer', status: 'pending', description: 'AI breaks down scenes, pacing, and engagement' },
-  { name: 'Engagement Strategist', status: 'pending', description: 'Generates retention fixes and hook strategies' },
-  { name: 'Motion Graphics Generator', status: 'pending', description: 'Creates Remotion TSX overlay components' },
+const STEPS: PipelineStep[] = [
+  { name: 'Analyzing', status: 'pending', description: 'AI processes your input and generates motion graphics' },
+  { name: 'Generating', status: 'pending', description: 'Building Remotion TSX components' },
 ];
 
 export const useAppStore = create<AppStore>((set, get) => ({
-  videoUrl: '',
   videoFile: null,
+  images: [],
+  prompt: '',
   status: 'idle',
   error: null,
-  steps: [...INITIAL_STEPS],
+  steps: [...STEPS],
   analysis: null,
   strategy: null,
   remotionOutput: null,
 
-  setVideoUrl: (url) => set({ videoUrl: url }),
   setVideoFile: (file) => set({ videoFile: file }),
+  setImages: (images) => set({ images }),
+  setPrompt: (prompt) => set({ prompt }),
 
   reset: () => set({
-    videoUrl: '',
     videoFile: null,
+    images: [],
+    prompt: '',
     status: 'idle',
     error: null,
-    steps: [...INITIAL_STEPS],
+    steps: [...STEPS],
     analysis: null,
     strategy: null,
     remotionOutput: null,
   }),
 
-  runPipeline: async (videoUrl?: string) => {
-    const { videoFile, videoUrl: storeUrl } = get();
-    const targetUrl = videoUrl || storeUrl;
+  runPipeline: async () => {
+    const { videoFile, images, prompt } = get();
 
-    if (!targetUrl && !videoFile) {
-      set({ error: 'No video source provided' });
+    const hasVideo = !!videoFile;
+    const hasPromptText = prompt.trim().length > 0;
+
+    if (!hasVideo && !hasPromptText) {
+      set({ error: 'Upload a video or describe what you want to create.' });
       return;
     }
 
     set({
-      status: videoFile ? 'uploading' : 'analyzing',
+      status: 'analyzing',
       error: null,
-      steps: INITIAL_STEPS.map((s, i) => ({
+      steps: STEPS.map((s, i) => ({
         ...s,
         status: i === 0 ? 'running' : 'pending',
       })),
@@ -88,30 +94,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const performFetch = async () => {
       try {
         const formData = new FormData();
-        if (videoFile) {
-          formData.append('videoFile', videoFile);
-        } else if (targetUrl) {
-          formData.append('videoUrl', targetUrl);
-        }
 
-        const res = await fetch('/api/pipeline', {
+        if (videoFile) formData.append('videoFile', videoFile);
+        for (const img of images) formData.append('images', img);
+        if (hasPromptText) formData.append('prompt', prompt.trim());
+
+        const endpoint = hasVideo ? '/api/pipeline' : '/api/generate-from-prompt';
+
+        const res = await fetch(endpoint, {
           method: 'POST',
-          body: formData, // Send as FormData to support files
+          body: formData,
         });
 
         if (!res.ok) {
           const data = await res.json();
-          throw new Error(data.error || 'Pipeline failed');
+          throw new Error(data.error || 'Generation failed');
         }
 
         const data = await res.json();
 
         set({
           status: 'complete',
-          analysis: data.analysis,
-          strategy: data.strategy,
+          analysis: data.analysis ?? null,
+          strategy: data.strategy ?? null,
           remotionOutput: data.remotionOutput,
-          steps: INITIAL_STEPS.map(s => ({ ...s, status: 'complete' as const })),
+          steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
         });
       } catch (err: unknown) {
         if (attempt < maxRetries) {

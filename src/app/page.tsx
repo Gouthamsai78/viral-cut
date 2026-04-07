@@ -2,13 +2,15 @@
 
 import type { RemotionOutput } from '@/agents/schemas';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { useAppStore } from '@/stores/app-store';
-import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2, AlertTriangle } from 'lucide-react';
+import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2, AlertTriangle, Wand2, Palette } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Player } from '@remotion/player';
 import { useCompilation } from '@/hooks/use-compilation';
 import { useClientRender } from '@/hooks/use-client-render';
+import { ChatEditor } from '@/components/chat-editor';
+import { PropertyEditor } from '@/components/property-editor';
 
 // ── Remotion Player Component (NPM Package + Babel Transpilation) ──
 function RemotionPlayerBridge({ output }: { output: RemotionOutput }) {
@@ -53,122 +55,228 @@ function RemotionPlayerBridge({ output }: { output: RemotionOutput }) {
   );
 }
 
-// ── Video Input (URL or File) ──
-function VideoInput() {
-  const { setVideoUrl, setVideoFile, runPipeline, status } = useAppStore();
-  const [localUrl, setLocalUrl] = useState('');
+// ── Unified Input (Video + Images + Prompt) ──
+function UnifiedInput() {
+  const {
+    videoFile, images, prompt,
+    setVideoFile, setImages, setPrompt,
+    runPipeline, status,
+  } = useAppStore();
+
+  const [localPrompt, setLocalPrompt] = useState(prompt);
   const [dragActive, setDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const videoFileRef = useRef<HTMLInputElement>(null);
+  const imageFileRef = useRef<HTMLInputElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
 
   const isRunning = status !== 'idle' && status !== 'complete' && status !== 'error';
 
-  const handleFile = (file: File) => {
-    if (!file.type.startsWith('video/')) {
-       alert("Please upload a video file.");
-       return;
+  // Create video preview URL when file changes
+  React.useEffect(() => {
+    if (videoFile) {
+      const url = URL.createObjectURL(videoFile);
+      setVideoPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
     }
-    const url = URL.createObjectURL(file);
+    setVideoPreviewUrl(null);
+  }, [videoFile]);
+
+  const handleVideoFile = (file: File) => {
+    if (!file.type.startsWith('video/')) {
+      alert("Please upload a video file.");
+      return;
+    }
     setVideoFile(file);
-    setVideoUrl(url);
-    runPipeline();
   };
 
-  const handleUrlSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!localUrl.trim()) return;
-    setVideoUrl(localUrl.trim());
+  const handleImageFiles = (files: File[]) => {
+    const valid = files.filter(f => f.type.startsWith('image/'));
+    if (valid.length) setImages([...images, ...valid]);
+  };
+
+  const removeImage = (index: number) => {
+    setImages(images.filter((_, i) => i !== index));
+  };
+
+  const removeVideo = () => {
     setVideoFile(null);
-    runPipeline();
+    setVideoPreviewUrl(null);
+  };
+
+  // Handle clipboard paste (images only)
+  const handlePaste = (e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items);
+    const imageItems = items.filter(item => item.type.startsWith('image/'));
+    if (imageItems.length > 0) {
+      e.preventDefault();
+      const files = imageItems
+        .map(item => item.getAsFile())
+        .filter((f): f is File => f !== null);
+      handleImageFiles(files);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
-      setDragActive(true);
-    } else if (e.type === "dragleave") {
-      setDragActive(false);
-    }
+    if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+    else if (e.type === "dragleave") setDragActive(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFile(e.dataTransfer.files[0]);
-    }
+    const files = Array.from(e.dataTransfer.files);
+    const videos = files.filter(f => f.type.startsWith('video/'));
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    if (videos[0]) handleVideoFile(videos[0]);
+    if (imgs.length) handleImageFiles(imgs);
   };
 
-  return (
-    <div className="w-full max-w-3xl mx-auto space-y-6">
-      {/* URL Input */}
-      <form onSubmit={handleUrlSubmit} className="">
-        <div className="glass rounded-2xl p-1.5 flex items-center gap-2">
-          <div className="flex items-center gap-3 flex-1 px-4">
-            <Film className="w-5 h-5 text-text-muted shrink-0" />
-            <input
-              type="url"
-              value={localUrl}
-              onChange={(e) => setLocalUrl(e.target.value)}
-              placeholder="Paste a public video URL (e.g. mp4 link)..."
-              className="flex-1 bg-transparent text-text-primary placeholder:text-text-muted outline-none py-3 text-[15px]"
-              disabled={isRunning}
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isRunning || !localUrl.trim()}
-            className="gradient-btn rounded-xl px-6 py-3 text-sm font-semibold flex items-center gap-2 shrink-0 disabled:opacity-40"
-          >
-            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-            Enhance URL
-          </button>
-        </div>
-      </form>
+  const handleSubmit = () => {
+    if (localPrompt.trim()) {
+      setPrompt(localPrompt.trim());
+    }
+    runPipeline();
+  };
 
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t border-white/10"></span>
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background px-4 text-text-muted font-medium">Or upload locally</span>
+  const hasInput = !!(videoFile || localPrompt.trim() || images.length > 0);
+
+  return (
+    <div
+      className="w-full max-w-3xl mx-auto space-y-4"
+      onPaste={handlePaste}
+    >
+      {/* Input Panel */}
+      <div className="glass-strong rounded-2xl p-4 space-y-3">
+        {/* Prompt */}
+        <textarea
+          ref={promptRef}
+          value={localPrompt}
+          onChange={(e) => setLocalPrompt(e.target.value)}
+          placeholder="Describe what you want to create... (optional)&#10;&#10;e.g., 'A motivational video with bold neon text, countdown timer, glitch transitions, dark cyberpunk background'"
+          className="w-full h-24 bg-transparent text-text-primary placeholder:text-text-muted outline-none resize-none text-sm leading-relaxed"
+          disabled={isRunning}
+        />
+
+        {/* Video Preview */}
+        {videoPreviewUrl && (
+          <div className="relative rounded-xl overflow-hidden border border-white/10 bg-black">
+            <video
+              src={videoPreviewUrl}
+              controls
+              className="w-full max-h-64 object-contain"
+            />
+            <button
+              onClick={removeVideo}
+              className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 text-white text-sm flex items-center justify-center hover:bg-accent-red/80 transition-colors"
+              title="Remove video"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* Attached images */}
+        {images.length > 0 && (
+          <div>
+            <p className="text-xs text-text-muted mb-2 uppercase tracking-wider font-semibold">Reference Images ({images.length})</p>
+            <div className="flex flex-wrap gap-2">
+              {images.map((img, i) => (
+                <div key={i} className="relative group">
+                  <img
+                    src={URL.createObjectURL(img)}
+                    alt={img.name}
+                    className="w-16 h-16 rounded-lg object-cover border border-white/10"
+                  />
+                  <button
+                    onClick={() => removeImage(i)}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-accent-red/80 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove image"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={() => videoFileRef.current?.click()}
+            disabled={isRunning}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-text-muted hover:text-text-secondary glass border border-white/5 hover:border-white/10 transition-all disabled:opacity-40"
+          >
+            <Upload className="w-3.5 h-3.5" /> Upload Video
+          </button>
+          <input
+            ref={videoFileRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={(e) => e.target.files?.[0] && handleVideoFile(e.target.files[0])}
+          />
+
+          <button
+            type="button"
+            onClick={() => imageFileRef.current?.click()}
+            disabled={isRunning}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs text-text-muted hover:text-text-secondary glass border border-white/5 hover:border-white/10 transition-all disabled:opacity-40"
+          >
+            <Upload className="w-3.5 h-3.5" /> Add Images
+          </button>
+          <input
+            ref={imageFileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => handleImageFiles(Array.from(e.target.files || []))}
+          />
+
+          <div className="flex-1" />
+
+          <span className="text-[10px] text-text-muted hidden sm:inline">
+            💡 Ctrl+V to paste images
+          </span>
+
+          <button
+            onClick={handleSubmit}
+            disabled={isRunning || !hasInput}
+            className="gradient-btn rounded-xl px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-40"
+          >
+            {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Generate
+          </button>
         </div>
       </div>
 
-      {/* Upload Zone */}
+      {/* Drag & Drop Zone */}
       <div
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
         className={cn(
-          "relative group cursor-pointer h-40 glass-strong border-2 border-dashed rounded-3xl flex flex-col items-center justify-center transition-all duration-300",
-          dragActive ? "border-primary bg-primary/5 scale-[1.01]" : "border-white/10 hover:border-white/20 hover:bg-white/5",
+          "relative cursor-pointer h-24 glass-strong border-2 border-dashed rounded-2xl flex flex-col items-center justify-center transition-all duration-300",
+          dragActive ? "border-primary bg-primary/5 scale-[1.01]" : "border-white/10 hover:border-white/20",
           isRunning && "opacity-50 pointer-events-none"
         )}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="video/*"
-          className="hidden"
-          onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
-        />
-        
-        <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-          <Upload className="w-6 h-6 text-primary-dim" />
-        </div>
-        
         <div className="text-center">
-          <p className="text-sm font-semibold text-text-primary">Click to upload or drag and drop</p>
-          <p className="text-xs text-text-muted mt-1">MP4, MOV, WEBM (Max 50MB)</p>
+          <p className="text-xs font-medium text-text-muted">
+            Drag & drop video or image files here
+          </p>
+          <p className="text-[10px] text-text-muted mt-0.5">MP4, MOV, WEBM · PNG, JPG, WEBP · Ctrl+V to paste</p>
         </div>
-
         {dragActive && (
-          <div className="absolute inset-0 bg-primary/10 rounded-3xl flex items-center justify-center backdrop-blur-[2px]">
-            <MousePointer2 className="w-8 h-8 text-primary animate-bounce" />
+          <div className="absolute inset-0 bg-primary/10 rounded-2xl flex items-center justify-center backdrop-blur-[2px]">
+            <MousePointer2 className="w-6 h-6 text-primary animate-bounce" />
           </div>
         )}
       </div>
@@ -265,19 +373,43 @@ function PipelineProgress() {
 // ── Results View ──
 function ResultsView() {
   const { analysis, strategy, remotionOutput, status, reset } = useAppStore();
-  const [activeTab, setActiveTab] = useState<'preview' | 'analysis' | 'strategy' | 'code' | 'custom'>('preview');
+  const [activeTab, setActiveTab] = useState<'preview' | 'analysis' | 'strategy' | 'code' | 'custom' | 'editor'>('preview');
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [customCode, setCustomCode] = useState('');
   const [useCustomCode, setUseCustomCode] = useState(false);
   const [showRenderModal, setShowRenderModal] = useState(false);
+  const [editorSubTab, setEditorSubTab] = useState<'props' | 'chat'>('props');
 
-  // Create a modified remotionOutput with custom code if enabled
-  const effectiveRemotionOutput = useCustomCode && customCode.trim()
-    ? { ...remotionOutput!, tsxCode: customCode }
-    : remotionOutput;
+  // The code that's currently being previewed/rendered
+  const [remotionCode, setRemotionCode] = useState('');
 
-  // Compile the effective output for rendering
-  const { Component } = useCompilation(effectiveRemotionOutput?.tsxCode ?? '');
+  // Initialize code from AI output or custom code
+  const currentCode = useCustomCode && customCode.trim() ? customCode : remotionCode || remotionOutput?.tsxCode || '';
+
+  // If the AI output changes, update the code
+  React.useEffect(() => {
+    if (remotionOutput?.tsxCode && !remotionCode) {
+      setRemotionCode(remotionOutput.tsxCode);
+    }
+  }, [remotionOutput, remotionCode]);
+
+  // Compile the current code for rendering
+  const compilationResult = useCompilation(currentCode);
+  const { Component, extractedProps } = compilationResult;
+
+  // Create a modified remotionOutput with the current code for rendering
+  const effectiveRemotionOutput = currentCode && compilationResult.compositionConfig
+    ? {
+        tsxCode: currentCode,
+        compositionConfig: {
+          id: String(compilationResult.compositionConfig.id ?? 'generated'),
+          durationInSeconds: Number(compilationResult.compositionConfig.durationInSeconds ?? 15),
+          fps: Number(compilationResult.compositionConfig.fps ?? 30),
+          width: Number(compilationResult.compositionConfig.width ?? 1080),
+          height: Number(compilationResult.compositionConfig.height ?? 1920),
+        },
+      } as RemotionOutput
+    : null;
 
   // Client-side render hook
   const {
@@ -312,12 +444,25 @@ function ResultsView() {
     render(effectiveRemotionOutput, Component);
   };
 
-  if (status !== 'complete' || !analysis) return null;
+  // Editor: handle code update from chat
+  const handleEditorCodeUpdate = useCallback((newCode: string, _explanation: string) => {
+    setRemotionCode(newCode);
+    // Switch to preview tab to see the changes
+    setActiveTab('preview');
+  }, []);
+
+  // Editor: handle code update from property editor
+  const handlePropertyCodeChange = useCallback((newCode: string) => {
+    setRemotionCode(newCode);
+  }, []);
+
+  if (status !== 'complete' || (!analysis && !remotionOutput)) return null;
 
   const tabs = [
     { id: 'preview' as const, label: 'Video Preview', icon: Play },
-    { id: 'analysis' as const, label: 'Video Analysis', icon: BarChart3 },
-    { id: 'strategy' as const, label: 'Strategy', icon: Eye },
+    ...(analysis ? [{ id: 'analysis' as const, label: 'Video Analysis', icon: BarChart3 }] : []),
+    ...(strategy ? [{ id: 'strategy' as const, label: 'Strategy', icon: Eye }] : []),
+    { id: 'editor' as const, label: 'Editor', icon: Wand2 },
     { id: 'code' as const, label: 'AI Code', icon: Code2 },
     { id: 'custom' as const, label: 'Custom Code', icon: Code2 },
   ];
@@ -548,6 +693,77 @@ export default MyComponent;`}
             )}
           </div>
         )}
+
+        {activeTab === 'editor' && currentCode && (
+          <div className="space-y-0">
+            {/* Sub-tab switcher */}
+            <div className="flex items-center gap-1 glass rounded-lg p-1 mb-4 w-fit">
+              <button
+                onClick={() => setEditorSubTab('props')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  editorSubTab === 'props'
+                    ? "bg-primary/20 text-primary-dim"
+                    : "text-text-muted hover:text-text-secondary"
+                )}
+              >
+                <Palette className="w-3 h-3" /> Properties
+              </button>
+              <button
+                onClick={() => setEditorSubTab('chat')}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all",
+                  editorSubTab === 'chat'
+                    ? "bg-primary/20 text-primary-dim"
+                    : "text-text-muted hover:text-text-secondary"
+                )}
+              >
+                <Wand2 className="w-3 h-3" /> Chat
+              </button>
+            </div>
+
+            {/* Editor content */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              {/* Left: Preview */}
+              <div>
+                <div className="text-xs text-text-muted mb-2 uppercase tracking-wider font-semibold">Live Preview</div>
+                {Component && compilationResult.compositionConfig ? (
+                  <div className="aspect-[9/16] max-h-[500px] mx-auto rounded-xl overflow-hidden bg-black border border-white/10">
+                    <Player
+                      component={Component}
+                      durationInFrames={Math.ceil((compilationResult.compositionConfig.durationInSeconds as number ?? 15) * (compilationResult.compositionConfig.fps as number ?? 30))}
+                      compositionWidth={Number(compilationResult.compositionConfig.width ?? 1080)}
+                      compositionHeight={Number(compilationResult.compositionConfig.height ?? 1920)}
+                      fps={Number(compilationResult.compositionConfig.fps ?? 30)}
+                      controls
+                      style={{ width: '100%', height: '100%' }}
+                    />
+                  </div>
+                ) : (
+                  <div className="aspect-[9/16] max-h-[500px] mx-auto rounded-xl bg-black/20 border border-white/5 flex items-center justify-center">
+                    <p className="text-sm text-text-muted">No component compiled</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Right: Chat or Properties */}
+              <div className="glass rounded-xl overflow-hidden">
+                {editorSubTab === 'chat' && (
+                  <ChatEditor
+                    currentCode={currentCode}
+                    onCodeUpdate={handleEditorCodeUpdate}
+                  />
+                )}
+                {editorSubTab === 'props' && (
+                  <PropertyEditor
+                    code={currentCode}
+                    onCodeChange={handlePropertyCodeChange}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action bar */}
@@ -730,13 +946,12 @@ export default function Home() {
             <span className="gradient-text">Viral Content</span>
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto leading-relaxed">
-            AI analyzes your video, generates engagement strategies, and creates
-            production-ready Remotion motion graphics — automatically.
+            Upload a video, describe what you want, or attach reference images — AI creates production-ready Remotion motion graphics automatically.
           </p>
         </div>
 
-        {/* Input */}
-        <VideoInput />
+        {/* Unified Input */}
+        <UnifiedInput />
 
         {/* Progress or Results */}
         {!showResults && <PipelineProgress />}

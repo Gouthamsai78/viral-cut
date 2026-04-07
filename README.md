@@ -1,37 +1,95 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ViralCut
 
-## Getting Started
+ViralCut is a prototype AI-powered short-form video editor built with Next.js, Remotion, and Google Gemini. It analyzes an input video, generates a high-retention engagement strategy, and creates live Remotion TSX motion graphics so you can preview an AI-generated social media edit instantly.
 
-First, run the development server:
+## Features
+
+- AI-driven video analysis for social media engagement and pacing
+- Strategy generation for hooks, retention fixes, motion graphics, and sound cues
+- Automatic Remotion TSX code generation using a structured AI workflow
+- Live in-browser preview via `@remotion/player`
+- Support for public video URLs and drag-and-drop local uploads
+- Pipeline progress UI with step-by-step status tracking
+- Built with Next.js App Router, Zustand state management, and TypeScript
+
+## How it works
+
+1. Upload a video or paste a public MP4/video URL.
+2. The app sends the video to `/api/pipeline`.
+3. The pipeline runs three AI stages:
+   - `video-analyzer` analyzes shots, pacing, audio, and engagement gaps.
+   - `engagement-strategist` generates a creative direction and retention strategy.
+   - `remotion-codegen` outputs Remotion TSX code for an animated social media edit.
+4. The generated TSX is compiled in-browser and previewed using Remotion Player.
+
+> Note: The `/api/render` endpoint currently returns a placeholder response. Server-side MP4 rendering is not implemented in this MVP.
+
+## Tech stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Remotion 4
+- Zustand
+- Google Gemini via `@ai-sdk/google`
+- `ai` package for structured model output
+- `sucrase` for runtime TSX compilation
+
+## Setup
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Create a `.env` file in the project root and add your Google AI key:
+
+```env
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+```
+
+3. Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+4. Open the app in your browser:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```text
+http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Project structure
 
-## Learn More
+- `src/app/` — Next.js UI and API routes
+- `src/agents/` — AI pipeline modules for analysis, strategy, and Remotion codegen
+- `src/hooks/` — custom hooks for runtime compilation and rendering
+- `src/lib/` — AI provider configuration
+- `src/stores/` — Zustand app state and pipeline management
 
-To learn more about Next.js, take a look at the following resources:
+## API routes
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `POST /api/pipeline` — full video AI pipeline (analysis, strategy, Remotion TSX generation)
+- `POST /api/analyze` — standalone video analysis endpoint
+- `POST /api/render` — placeholder endpoint for future MP4 rendering
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev` — start the development server
+- `npm run build` — build the production app
+- `npm run start` — start the production server
+- `npm run lint` — run ESLint
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Notes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
-"# viral-cut"  
+- The app uses `generateText` from the `ai` package to call Google Gemini models defined in `src/lib/ai-config.ts`.
+- The Remotion TSX code is compiled at runtime using `sucrase` and rendered inside the browser.
+- For best results, use short social media clips and public video URLs or local MP4 uploads.
+
+## License
+
+This repository has no license defined.
+  

@@ -1,10 +1,17 @@
 import { transform } from 'sucrase';
 import React, { useMemo } from 'react';
 import * as Remotion from 'remotion';
+import { extractPropsFromCode, type ExtractedProperty } from './extract-props';
 
-interface CompilationResult {
+export type { ExtractedProperty } from './extract-props';
+
+export interface CompilationResult {
   Component: React.ComponentType | null;
   error: string | null;
+  /** Extracted editable properties from the TSX source code */
+  extractedProps: ExtractedProperty[];
+  /** The composition config (duration, fps, dimensions) */
+  compositionConfig: Record<string, unknown> | null;
 }
 
 /**
@@ -19,10 +26,13 @@ interface CompilationResult {
  */
 export function useCompilation(code: string): CompilationResult {
   return useMemo(() => {
-    if (!code?.trim()) return { Component: null, error: null };
+    if (!code?.trim()) return { Component: null, error: null, extractedProps: [], compositionConfig: null };
 
     try {
-      // ── Step 1: Transpile TSX → JS with imports transform ──
+      // ── Step 1: Extract props from source code BEFORE transpilation ──
+      const extractedProps = extractPropsFromCode(code);
+
+      // ── Step 2: Transpile TSX → JS with imports transform ──
       // `imports` converts `import X from 'Y'` → `const X = require('Y')`
       const compiled = transform(code, {
         transforms: ['typescript', 'jsx', 'imports'],
@@ -31,60 +41,52 @@ export function useCompilation(code: string): CompilationResult {
       });
 
       if (!compiled.code) {
-        return { Component: null, error: 'Transpilation failed: no output' };
+        return { Component: null, error: 'Transpilation failed: no output', extractedProps, compositionConfig: null };
       }
 
-      // ── Step 2: Custom require shim ──
+      // ── Step 3: Custom require shim ──
       const mockRequire = (name: string) => {
         if (name === 'remotion') return Remotion;
         if (name === 'react') return React;
         throw new Error(`Module not found: "${name}". Only 'remotion' and 'react' imports are supported.`);
       };
 
-      // ── Step 3: Execute with CommonJS module system ──
-      const exports: Record<string, any> = {};
-      const module = { exports };
+      // ── Step 4: Execute with CommonJS module system ──
+      const moduleObj: { exports: Record<string, unknown> } = { exports: {} };
+      const exportsObj = moduleObj.exports;
 
-      const executeCode = new Function(
+      new Function(
         'require',
         'module',
         'exports',
         'React',
         compiled.code
-      );
+      )(mockRequire, moduleObj, exportsObj, React);
 
-      executeCode(mockRequire, module, exports, React);
+      // ── Step 5: Extract component and config ──
+      const Component = exportsObj.default as React.ComponentType | undefined;
+      const compositionConfig = exportsObj.compositionConfig;
 
-      // ── Step 4: Extract component and config ──
-      const Component = exports.default || module.exports.default;
-      const compositionConfig = exports.compositionConfig || module.exports.compositionConfig;
-
-      if (!Component) {
+      if (!Component || typeof Component !== 'function') {
         return {
           Component: null,
-          error: 'No default export found. Make sure your code has "export default ComponentName".',
+          error: !Component
+            ? 'No default export found. Make sure your code has "export default ComponentName".'
+            : `Default export is not a valid React component. Got: ${typeof Component}.`,
+          extractedProps,
+          compositionConfig: compositionConfig as Record<string, unknown> | null,
         };
       }
 
-      if (typeof Component !== 'function') {
-        return {
-          Component: null,
-          error: `Default export is not a valid React component. Got: ${typeof Component}.`,
-        };
-      }
-
-      // Log config for debugging (optional)
-      if (compositionConfig) {
-        console.log('Composition config:', compositionConfig);
-      }
-
-      return { Component, error: null };
+      return { Component, error: null, extractedProps, compositionConfig: compositionConfig as Record<string, unknown> | null };
     } catch (error) {
       console.error('Compilation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown compilation error';
       return {
         Component: null,
         error: `Compilation failed: ${errorMessage}\n\nMake sure your code:\n1. Has valid TypeScript/JSX syntax\n2. Uses only 'remotion' and 'react' imports\n3. Has "export default ComponentName"`,
+        extractedProps: [],
+        compositionConfig: null,
       };
     }
   }, [code]);

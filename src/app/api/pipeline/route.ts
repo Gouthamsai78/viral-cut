@@ -1,41 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { analyzeVideo } from '@/agents/video-analyzer';
 import { generateStrategy } from '@/agents/engagement-strategist';
-import { generateRemotionCode } from '@/agents/remotion-codegen';
+import { generateRemotionCode, generateRemotionFromPrompt } from '@/agents/remotion-codegen';
 
-export const maxDuration = 120; // Allow up to 2 min for the full pipeline
+export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
   try {
-    const contentType = req.headers.get('content-type') || '';
-    let videoUrl: string | null = null;
-    let videoFile: File | null = null;
+    const formData = await req.formData();
+    const videoFile = formData.get('videoFile') as File;
+    const prompt = formData.get('prompt') as string;
+    const imageFiles = formData.getAll('images') as File[];
+    const images = imageFiles.filter((f): f is File => f instanceof File && f.size > 0);
 
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await req.formData();
-      videoUrl = formData.get('videoUrl') as string;
-      videoFile = formData.get('videoFile') as File;
+    const hasVideo = !!videoFile;
+    const hasPrompt = prompt?.trim().length > 0;
+
+    if (!hasVideo && !hasPrompt) {
+      return NextResponse.json({ error: 'Provide a video or describe what you want.' }, { status: 400 });
+    }
+
+    let analysis;
+    let strategy;
+    let remotionOutput;
+
+    if (hasVideo) {
+      // Video-based pipeline
+      analysis = await analyzeVideo(null, videoFile);
+      strategy = await generateStrategy(analysis);
+
+      // If prompt is also provided, pass images to code generation
+      remotionOutput = await generateRemotionCode(analysis, strategy, images);
     } else {
-      const body = await req.json();
-      videoUrl = body.videoUrl;
+      // Prompt-only pipeline
+      remotionOutput = await generateRemotionFromPrompt(prompt, images);
     }
-
-    if (!videoUrl && !videoFile) {
-      return NextResponse.json({ error: 'videoUrl or videoFile is required' }, { status: 400 });
-    }
-
-    // ── Step 1: Video Analysis ──
-    const analysis = await analyzeVideo(videoUrl, videoFile);
-
-    // ── Step 2: Engagement Strategy ──
-    const strategy = await generateStrategy(analysis);
-
-    // ── Step 3: Remotion Code Generation ──
-    const remotionOutput = await generateRemotionCode(analysis, strategy);
 
     return NextResponse.json({
-      analysis,
-      strategy,
+      analysis: analysis ?? null,
+      strategy: strategy ?? null,
       remotionOutput,
     });
   } catch (error: unknown) {
