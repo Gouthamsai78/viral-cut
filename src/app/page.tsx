@@ -4,10 +4,11 @@ import type { RemotionOutput } from '@/agents/schemas';
 
 import React, { useState, useRef } from 'react';
 import { useAppStore } from '@/stores/app-store';
-import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2 } from 'lucide-react';
+import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Player } from '@remotion/player';
 import { useCompilation } from '@/hooks/use-compilation';
+import { useClientRender } from '@/hooks/use-client-render';
 
 // ── Remotion Player Component (NPM Package + Babel Transpilation) ──
 function RemotionPlayerBridge({ output }: { output: RemotionOutput }) {
@@ -261,58 +262,54 @@ function PipelineProgress() {
   );
 }
 
-// ── Download helper (Server-Side MP4 Render) ──
-async function downloadVideo(remotionOutput: RemotionOutput) {
-  const res = await fetch('/api/render', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      tsxCode: remotionOutput.tsxCode,
-      compositionConfig: remotionOutput.compositionConfig,
-    }),
-  });
-  
-  if (!res.ok) {
-    const errorData = await res.json();
-    throw new Error(errorData.error || 'Rendering failed');
-  }
-  
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `viralcut-${Date.now()}.mp4`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 // ── Results View ──
 function ResultsView() {
   const { analysis, strategy, remotionOutput, status, reset } = useAppStore();
   const [activeTab, setActiveTab] = useState<'preview' | 'analysis' | 'strategy' | 'code' | 'custom'>('preview');
-  const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const [customCode, setCustomCode] = useState('');
   const [useCustomCode, setUseCustomCode] = useState(false);
+  const [showRenderModal, setShowRenderModal] = useState(false);
 
   // Create a modified remotionOutput with custom code if enabled
   const effectiveRemotionOutput = useCustomCode && customCode.trim()
     ? { ...remotionOutput!, tsxCode: customCode }
     : remotionOutput;
 
-  const handleDownload = async () => {
-    if (!effectiveRemotionOutput) return;
-    setDownloading(true);
+  // Compile the effective output for rendering
+  const { Component } = useCompilation(effectiveRemotionOutput?.tsxCode ?? '');
+
+  // Client-side render hook
+  const {
+    isRendering,
+    renderProgress,
+    error: renderError,
+    isSupported,
+    abort,
+    render,
+  } = useClientRender({
+    onComplete: (blob) => {
+      // Trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `viralcut-${Date.now()}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setShowRenderModal(false);
+    },
+    onError: (err) => {
+      setDownloadError(err.message);
+    },
+  });
+
+  const handleDownload = () => {
+    if (!effectiveRemotionOutput || !Component) return;
+    setShowRenderModal(true);
     setDownloadError(null);
-    try {
-      await downloadVideo(effectiveRemotionOutput);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Download failed');
-    } finally {
-      setDownloading(false);
-    }
+    render(effectiveRemotionOutput, Component);
   };
 
   if (status !== 'complete' || !analysis) return null;
@@ -558,14 +555,11 @@ export default MyComponent;`}
         {effectiveRemotionOutput && (
           <button
             onClick={handleDownload}
-            disabled={downloading}
-            className="gradient-btn rounded-xl px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-50"
+            disabled={!isSupported || !Component}
+            className="gradient-btn rounded-xl px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-50 relative group"
+            title={!isSupported ? 'Client-side rendering is not supported in your browser' : !Component ? 'Component not compiled yet' : 'Export as MP4'}
           >
-            {downloading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" /> Rendering MP4...</>
-            ) : (
-              <><Download className="w-4 h-4" /> Export High-Quality Video</>
-            )}
+            <Download className="w-4 h-4" /> Export High-Quality Video
           </button>
         )}
         <button onClick={reset} className="ghost-btn rounded-xl px-6 py-3 text-sm">
@@ -574,6 +568,77 @@ export default MyComponent;`}
       </div>
       {downloadError && (
         <p className="text-center text-xs text-accent-red mt-2">{downloadError}</p>
+      )}
+      {!isSupported && (
+        <p className="text-center text-xs text-accent-amber mt-2 flex items-center justify-center gap-1">
+          <AlertTriangle className="w-3 h-3" />
+          Client-side rendering is not supported. Please use Chrome or Firefox for video export.
+        </p>
+      )}
+
+      {/* Render Progress Modal */}
+      {showRenderModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-strong rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                {isRendering ? (
+                  <><Loader2 className="w-5 h-5 text-primary animate-spin" /> Rendering Video</>
+                ) : renderError ? (
+                  <><XCircle className="w-5 h-5 text-accent-red" /> Render Failed</>
+                ) : (
+                  <><CheckCircle2 className="w-5 h-5 text-accent-green" /> Render Complete</>
+                )}
+              </h3>
+              {isRendering && (
+                <button
+                  onClick={abort}
+                  className="text-xs text-text-muted hover:text-accent-red transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+
+            {isRendering && renderProgress && (
+              <div className="space-y-4">
+                {/* Progress bar */}
+                <div className="h-2 bg-surface-high rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-primary to-secondary rounded-full transition-all duration-300"
+                    style={{ width: `${renderProgress.progress * 100}%` }}
+                  />
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-surface-high rounded-xl p-3 text-center">
+                    <p className="text-xl font-bold text-text-primary">{renderProgress.encodedFrames}</p>
+                    <p className="text-xs text-text-muted">Frames Rendered</p>
+                  </div>
+                  <div className="bg-surface-high rounded-xl p-3 text-center">
+                    <p className="text-xl font-bold text-text-primary">{(renderProgress.estimatedTimeRemaining / 1000).toFixed(1)}s</p>
+                    <p className="text-xs text-text-muted">Est. Time Left</p>
+                  </div>
+                </div>
+
+                <p className="text-center text-sm text-text-muted">
+                  {(renderProgress.progress * 100).toFixed(0)}% complete · {renderProgress.encodedFrames}/{renderProgress.totalFrames} frames
+                </p>
+
+                <p className="text-xs text-text-muted text-center">
+                  Keep this tab active for best performance
+                </p>
+              </div>
+            )}
+
+            {renderError && (
+              <div className="p-4 rounded-xl bg-accent-red/10 border border-accent-red/20">
+                <p className="text-sm text-accent-red">{renderError}</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

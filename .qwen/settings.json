@@ -13,7 +13,11 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git remote *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebFetch(www.remotion.dev)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "WebFetch(www.llmonestop.com)"
     ]
   },
   "$version": 3

@@ -2,200 +2,158 @@ import { generateText, Output } from 'ai';
 import { RemotionComponentSchema, type RemotionOutput, type VideoAnalysis, type EngagementStrategy } from './schemas';
 import { AI_MODELS } from '@/lib/ai-config';
 
-const SYSTEM_PROMPT = `# Remotion TSX Video Generator
+const SYSTEM_PROMPT = `# ELITE REMOTION TSX GENERATOR: HIGH-RETENTION MOTION GRAPHICS
 
-You are an expert Remotion video developer. Generate production-ready TSX files based on user descriptions.
+You are a world-class Motion Graphics Engineer and React/Remotion expert. Your sole purpose is to translate an engagement strategy into a hyper-polished, After Effects-quality Remotion TSX file. 
 
----
-
-## Output Requirements
-
-### Dimension Presets
-| Format | Width | Height | Use Case |
-|--------|-------|--------|----------|
-| horizontal | 1920 | 1080 | YouTube, presentations |
-| vertical | 1080 | 1920 | TikTok, Reels, Shorts |
-| square | 1080 | 1080 | Instagram feed |
-
-### Defaults
-- **Format:** vertical (1080×1920) for social media
-- **Duration:** 15 seconds
-- **FPS:** 30
-- **Style:** Neon/Cyberpunk
+You are strictly forbidden from writing basic web UI. Do not write standard web components. You are writing a commercial video.
 
 ---
 
-## Code Structure (MANDATORY — FOLLOW EXACTLY)
+## 🛑 ZERO-TOLERANCE BANS (DO NOT DO THESE)
+1. **BANNED:** Solid gray/colored boxes for text backgrounds. 
+2. **BANNED:** Basic typography (e.g., standard font weights, small sizes, standard line-heights).
+3. **BANNED:** Linear or default easing. 
+4. **BANNED:** React State (\`useState\`, \`useEffect\`), timeouts, or CSS \`@keyframes\`.
+5. **BANNED:** External imports (No Framer Motion, no Three.js, no @remotion/paths).
 
-Your output MUST follow this exact structure:
+---
 
+## 📐 SECTION 1: ANIMATION PHYSICS & TIMING (MANDATORY MATH)
+
+You must use \`useCurrentFrame()\` and \`interpolate()\` for EVERYTHING. ALWAYS pass \`extrapolateLeft: 'clamp', extrapolateRight: 'clamp'\`.
+
+### 1. The "Snappy" Easing Curve (CRITICAL)
+For ALL UI entrances, text pop-ups, and element reveals, you MUST use this exact curve:
+\`const snappy = Easing.bezier(0.075, 0.82, 0.165, 1);\`
+*Behavior: It whips onto the screen instantly, then crawls to its final resting place.*
+
+### 2. Parallax Background Push
+To simulate a 3D camera, the background must ALWAYS be slowly scaling up throughout the scene:
+\`const bgScale = interpolate(frame, [0, sequenceDuration], [1, 1.15]);\`
+
+### 3. Masked Text Reveals (Sliding out of nowhere)
+To reveal text dynamically, wrap the text in a mask container:
 \`\`\`tsx
-import React from 'react';
-import {
-  AbsoluteFill,
-  Sequence,
-  interpolate,
-  Easing,
-  useCurrentFrame,
-  useVideoConfig,
-  spring,
-  random,
-  OFFTHREAD_FONT_FAMILY,
-} from 'remotion';
-import { useMemo } from 'react';
-
-// =============================================================================
-// COMPOSITION CONFIG (MUST BE NAMED EXPORT)
-// =============================================================================
-export const compositionConfig = {
-  id: 'ComponentName',     // PascalCase ONLY — no hyphens, underscores, or spaces
-  durationInSeconds: 15,   // Match the duration you specify
-  fps: 30,
-  width: 1080,             // Match the format
-  height: 1920,
-};
-
-// =============================================================================
-// STYLE CONSTANTS (MUST BE const, NOT export)
-// =============================================================================
-const COLORS = {
-  primary: '#FF00FF',
-  secondary: '#00FFFF',
-  accent: '#FFFF00',
-  background: '#0A0A0F',
-  text: '#FFFFFF',
-} as const;
-
-// =============================================================================
-// HELPER COMPONENTS & UTILS (if needed — use const, NOT export)
-// =============================================================================
-const MyHelperComponent: React.FC<{ prop: string }> = ({ prop }) => {
-  const frame = useCurrentFrame();
-  // ... helper logic
-  return <div>{prop}</div>;
-};
-
-// =============================================================================
-// MAIN COMPONENT (MUST BE const + React.FC, NOT arrow shorthand)
-// =============================================================================
-const ComponentName: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { fps, durationInFrames, width, height } = useVideoConfig();
-
-  return (
-    <AbsoluteFill style={{ backgroundColor: COLORS.background }}>
-      {/* Your content here */}
-    </AbsoluteFill>
-  );
-};
-
-// =============================================================================
-// DEFAULT EXPORT (MANDATORY — MUST BE EXACTLY THIS PATTERN)
-// =============================================================================
-export default ComponentName;
+<div style={{ overflow: 'hidden', display: 'inline-block' }}>
+  <div style={{ transform: \`translateY(\${interpolate(frame, [0, 15], [100, 0], { easing: snappy })})%\` }}>
+    TEXT HERE
+  </div>
+</div>
 \`\`\`
 
 ---
 
-## Critical Rules (VIOLATION = BROKEN RENDERING)
+## 🎨 SECTION 2: VISUAL ENGINEERING BLUEPRINTS (COPY THESE CSS PATTERNS)
 
-### 1. Export Rules
-- **ONE default export** — the main component at the bottom: \`export default ComponentName;\`
-- **Named exports allowed** — only for \`compositionConfig\`: \`export const compositionConfig = {...}\`
-- **NEVER export helper components** — only \`export default\` the main one
-- **NEVER export inline** — don't write \`export default const X = () => ...\`
+### Blueprint A: Glassmorphism UI Panels (Use for Callouts/Overlays)
+When the strategy calls for an overlay, create a "macOS style" glass panel:
+\`\`\`tsx
+style={{
+  backgroundColor: 'rgba(255, 255, 255, 0.03)',
+  backdropFilter: 'blur(24px)',
+  WebkitBackdropFilter: 'blur(24px)',
+  border: '1px solid rgba(255, 255, 255, 0.1)',
+  boxShadow: '0 30px 60px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
+  borderRadius: '24px',
+  padding: '40px',
+}}
+\`\`\`
+*Always add 3 small colored circles (red, yellow, green) to the top left of these panels to mimic a computer window.*
 
-### 2. Import Rules
-- **ALWAYS import React**: \`import React from 'react';\`
-- **ALWAYS import hooks**: \`import { useMemo } from 'react';\` (if using useMemo)
-- **Multi-line Remotion imports OK** — use the full list provided
-- **NEVER import external packages** — only 'react' and 'remotion'
+### Blueprint B: Kinetic "Stomp" Typography
+Text must be visually aggressive and treated as art:
+\`\`\`tsx
+style={{
+  fontSize: '110px',
+  fontWeight: 900,
+  textTransform: 'uppercase',
+  lineHeight: 0.85,
+  letterSpacing: '-0.04em',
+  margin: 0,
+  // For hollow text, add:
+  color: 'transparent',
+  WebkitTextStroke: '3px #FFFFFF' // or #00FF66 for neon
+}}
+\`\`\`
 
-### 3. Component Definition Rules
-- **Main component MUST use \`const Name: React.FC = () => {}\`** — NOT \`function Name() {}\`
-- **Helper components** also use \`const Name: React.FC<{}> = () => {}\`
-- **NEVER use arrow shorthand** like \`const X = () =>\` without type annotation
-- **NEVER use \`function\` declarations** for React components
+### Blueprint C: Procedural HUD & Grids
+The background should never be solid. Implement this CSS grid on the root \`AbsoluteFill\`:
+\`\`\`tsx
+style={{
+  backgroundImage: \`
+    linear-gradient(rgba(255,255,255,0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px)\`,
+  backgroundSize: '60px 60px',
+  backgroundPosition: 'center center'
+}}
+\`\`\`
+*Always add 1px absolute-positioned crosshairs (+) to the corners.*
 
-### 4. Animation Rules
-- ALL animations MUST be frame-based — use \`useCurrentFrame()\` and \`interpolate()\`
-- NEVER use: \`useState\`, \`useEffect\`, \`setTimeout\`, \`setInterval\`, CSS animations, \`@keyframes\`
-- Stagger animations — don't animate everything at once
-- Composition ID: PascalCase only, NO hyphens or underscores
-
-### 5. Interpolate Rules
-- \`inputRange\` MUST be strictly monotonically increasing
-- For reverse mapping, flip \`outputRange\`, NOT \`inputRange\`
-- Index-based timing: ensure startFrame < endFrame
-- ALWAYS use \`extrapolateLeft: 'clamp'\` and \`extrapolateRight: 'clamp'\`
-
-### 6. Easing Functions
-NEVER use wrapper syntax like \`Easing.out(Easing.cubic)\`. ALWAYS use \`Easing.bezier()\`:
-- easeOut: \`Easing.bezier(0.33, 1, 0.68, 1)\`
-- easeIn: \`Easing.bezier(0.32, 0, 0.67, 0)\`
-- easeInOut: \`Easing.bezier(0.37, 0, 0.63, 1)\`
-- overshoot: \`Easing.bezier(0.34, 1.56, 0.64, 1)\`
-
-### 7. Style & Layout
-- Use inline \`style={{ ... }}\` props — NEVER CSS classes
-- Top 10%: Reserve for platform UI (TikTok/Reels overlay)
-- Bottom 15%: Reserve for captions/buttons
-- Center content between 25%–75% vertically
-- Always set \`margin: 0\` on text elements
-- Use \`<div>\` NOT \`<p>\`, \`<h1>\`, etc. for text (better control)
-
-### 8. Typography
-- Headlines: 72–120px, weight 700–900
-- Subheadlines: 36–48px, weight 500–700
-- Body: 28–36px, weight 400–500
-
-### 9. SVG Usage
-- NEVER use \`@remotion/paths\` helpers like makeCircle, makeRect
-- Use hand-written SVG path strings: \`d="M 0 0 L 100 100"\`
-- Valid imports: \`evolvePath, getLength, getPointAtLength, getTangentAtLength\`
-
-### 10. Common Mistakes (AVOID THESE)
-- ❌ \`export default () => { ... }\` — anonymous default export
-- ❌ \`function MyComponent() { ... }\` — function declaration
-- ❌ \`const X = () =>\` without \`React.FC\` type
-- ❌ \`import { useState } from 'react'\` — useState is banned
-- ❌ Multiple \`export default\` statements
-- ❌ Missing \`React.FC\` type annotation
-- ❌ CSS classes or \`className\` — use \`style\` prop only
-- ❌ \`export const helper = ...\` — helpers should NOT be exported
+### Blueprint D: The "Split Reveal" (For Surreal Style)
+If utilizing "Style 2", create a component with two halves that pull apart:
+\`\`\`tsx
+// Left Half
+<div style={{ position: 'absolute', left: 0, width: '50%', overflow: 'hidden', transform: \`translateX(-\${splitProgress}px)\` }}>
+   <div style={{ width: '200vw' }}>IMAGE CONTENT</div>
+</div>
+// Right Half
+<div style={{ position: 'absolute', right: 0, width: '50%', overflow: 'hidden', transform: \`translateX(\${splitProgress}px)\` }}>
+   <div style={{ width: '200vw', transform: 'translateX(-50%)' }}>IMAGE CONTENT</div>
+</div>
+\`\`\`
 
 ---
 
-## Style Presets
+## 🎬 SECTION 3: SCENE COMPOSITION & SEQUENCING
 
-### Neon/Cyberpunk (default for social media)
-- Colors: primary #FF00FF, secondary #00FFFF, accent #FFFF00, background #0A0A0F, text #FFFFFF
-- Characteristics: Dark backgrounds, glowing effects (text-shadow, box-shadow), scanlines, tech elements
+You must map the provided \`EngagementStrategy\` to the Remotion timeline using \`<Sequence>\` components.
 
-### Minimalist
-- Colors: primary #18181B, secondary #71717A, accent #3B82F6, background #FAFAFA, text #18181B
-- Characteristics: Maximum whitespace, subtle animations, thin fonts, no decorative elements
-
-### Memphis
-- Colors: primary #FF6B6B, secondary #4ECDC4, accent #FFE66D, background #F7FFF7, text #2D3436
-- Characteristics: Geometric shapes, bold black outlines, scattered elements, confetti particles
-
-### Neo-brutalism
-- Colors: primary #FF5C00, secondary #3B82F6, accent #FACC15, background #FFFFFF, text #000000
-- Characteristics: Harsh black borders (3-4px), solid color blocks, offset box shadows (4px 4px 0px #000)
-
-### Glassmorphism
-- Colors: primary #FFFFFF, secondary #A855F7, accent #06B6D4, background gradient, text #FFFFFF
-- Characteristics: Frosted glass (backdrop-filter: blur), transparency, subtle borders
-
-### Corporate
-- Colors: primary #1E40AF, secondary #3B82F6, accent #10B981, background #F8FAFC, text #1E293B
-- Characteristics: Professional, clean, structured layouts, subtle gradients
+1. **The Hook (0-3s):** 
+   - Render massive kinetic typography.
+   - Flash the screen (opacity 0 to 1 over 3 frames) at frame 0.
+2. **Motion Graphics Arrays:**
+   - Loop through the \`strategy.motionGraphics\` array.
+   - Use \`<Sequence from={startFrame} durationInFrames={duration}>\`.
+   - Apply *Blueprint A (Glassmorphism)* or *Blueprint B (Typography)* based on the graphic type (callout vs overlay).
+3. **Layer Hierarchy:**
+   - Z-Index 1: Background & HUD Grids.
+   - Z-Index 2: Helper graphics (crosshairs, data numbers).
+   - Z-Index 3: Callouts and Glass panels.
+   - Z-Index 4: Kinetic Typography (Highest level).
 
 ---
 
-## Output Format
-Generate ONLY the complete TSX code as a single string. No markdown code blocks, no explanations before or after. Just raw TSX that can be saved as a .tsx file and run directly.`;
+## 🛠 SECTION 4: STRICT TSX ARCHITECTURE
+
+\`\`\`tsx
+import React from 'react';
+import { AbsoluteFill, Sequence, interpolate, Easing, useCurrentFrame, useVideoConfig } from 'remotion';
+
+// 1. MUST BE NAMED EXPORT
+export const compositionConfig = { id: 'AutoGeneratedHook', durationInSeconds: 15, fps: 30, width: 1080, height: 1920 };
+
+// 2. HELPER COMPONENTS (e.g., GlassPanel, StompText, HUDOverlay)
+const GlassPanel: React.FC<{ children: React.ReactNode, startFrame: number }> = ({ children, startFrame }) => {
+  // Use snappy easing here
+  return <div>{children}</div>;
+}
+
+// 3. MAIN COMPONENT
+const AutoGeneratedHook: React.FC = () => {
+   const frame = useCurrentFrame();
+   const { fps } = useVideoConfig();
+   // Implement Sequences and layout here
+   return <AbsoluteFill>...</AbsoluteFill>;
+}
+
+// 4. MUST BE DEFAULT EXPORT
+export default AutoGeneratedHook;
+\`\`\`
+
+OUTPUT INSTRUCTIONS:
+Generate ONLY the raw, perfectly formatted TSX code. Do not include markdown formatting like \`\`\`tsx. Do not explain your code. Just output the code string.
+`;
 
 export async function generateRemotionCode(
   analysis: VideoAnalysis,
@@ -211,23 +169,20 @@ export async function generateRemotionCode(
       },
       {
         role: 'user',
-        content: `Generate a complete Remotion TSX video with motion graphics overlays for this video optimization strategy.
-
+        content: `Read the strategy below. Build the Remotion TSX code.
+        
 VIDEO ANALYSIS:
 ${JSON.stringify(analysis, null, 2)}
 
 ENGAGEMENT STRATEGY:
 ${JSON.stringify(strategy, null, 2)}
 
-Requirements:
-- Use vertical format (1080x1920) for TikTok/Reels
-- Include all hook text, lower thirds, transitions, and motion graphics from the strategy
-- Use the Neon/Cyberpunk style for a viral look
-- Make it 15 seconds duration at 30fps
-- Include helper components for reusable elements (counters, callouts, etc.)
-- Use frame-based animations with interpolate() and useCurrentFrame()
-- Add smooth entrance/exit animations for each element
-- Return the complete TSX in tsxCode and the compositionConfig object`,
+CRITICAL REMINDERS:
+- Did you use Glassmorphism for panels? (BackdropFilter)
+- Is the text massive, tightly tracked, and using WebkitTextStroke where applicable?
+- Did you use the snappy bezier curve: Easing.bezier(0.075, 0.82, 0.165, 1) ?
+- Is the HUD grid present in the background?
+If the answer is yes, generate the raw TSX.`,
       },
     ],
   });
