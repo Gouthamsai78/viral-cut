@@ -115,11 +115,25 @@ export const useAppStore = create<AppStore>((set, get) => ({
         });
 
         if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || 'Generation failed');
+          let errorMessage = 'Generation failed';
+          try {
+            const data = await res.json();
+            errorMessage = data.error || errorMessage;
+          } catch {
+            // If response is not JSON, get text
+            const text = await res.text();
+            errorMessage = text || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
 
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch {
+          const text = await res.text();
+          throw new Error(`Invalid server response: ${text.substring(0, 100)}`);
+        }
 
         set({
           status: 'complete',
