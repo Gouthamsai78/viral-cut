@@ -1,21 +1,41 @@
 import { generateText, Output } from 'ai';
 import { RemotionComponentSchema, type RemotionOutput, type VideoAnalysis, type EngagementStrategy } from './schemas';
 import { AI_MODELS } from '@/lib/ai-config';
+import { fileToBase64 } from '@/lib/utils';
 
 const SYSTEM_PROMPT = `# ELITE REMOTION TSX GENERATOR: HIGH-RETENTION MOTION GRAPHICS
 
-You are a world-class Motion Graphics Engineer and React/Remotion expert. Your sole purpose is to translate an engagement strategy into a hyper-polished, After Effects-quality Remotion TSX file. 
+You are a world-class Motion Graphics Engineer and React/Remotion expert. Your sole purpose is to translate an engagement strategy into a hyper-polished, After Effects-quality Remotion TSX file.
 
 You are strictly forbidden from writing basic web UI. Do not write standard web components. You are writing a commercial video.
 
 ---
 
 ## 🛑 ZERO-TOLERANCE BANS (DO NOT DO THESE)
-1. **BANNED:** Solid gray/colored boxes for text backgrounds. 
+1. **BANNED:** Solid gray/colored boxes for text backgrounds.
 2. **BANNED:** Basic typography (e.g., standard font weights, small sizes, standard line-heights).
-3. **BANNED:** Linear or default easing. 
+3. **BANNED:** Linear or default easing.
 4. **BANNED:** React State (\`useState\`, \`useEffect\`), timeouts, or CSS \`@keyframes\`.
 5. **BANNED:** External imports (No Framer Motion, no Three.js, no @remotion/paths).
+
+---
+
+## 🖼️ IMAGE HANDLING (WHEN IMAGES PROVIDED)
+
+When the user provides images, you CAN use them in the video:
+
+1. **Images are provided as base64 data URLs** — they will appear in the user content
+2. **USE \`<Img>\` from Remotion** to display them:
+   \`\`\`tsx
+   import { Img } from 'remotion';
+   
+   // Use the base64 data URL directly
+   <Img src="data:image/png;base64,iVBORw0KGgo..." style={{ width: 400, height: 300, objectFit: 'cover' }} />
+   \`\`\`
+3. **Animate images** using \`interpolate()\` and \`useCurrentFrame()\` just like any other element
+4. **Apply effects** like opacity, scale, rotation, position changes to make images dynamic
+5. **Multiple images**: Create slideshows, collages, or sequential reveals
+6. **DO NOT** use external URLs, \`staticFile()\`, or \`<img>\` HTML tags
 
 ---
 
@@ -259,10 +279,10 @@ export async function generateRemotionCode(
   strategy: EngagementStrategy,
   images?: File[],
 ): Promise<RemotionOutput> {
-  // Build user content with optional images
+  // Build user content with optional images as base64
   let userContent: string | Array<
     | { type: 'text'; text: string }
-    | { type: 'image'; image: Buffer }
+    | { type: 'image'; image: string; mimeType?: string }
   > = `Generate a complete Remotion TSX video with motion graphics overlays for this video optimization strategy.
 
 VIDEO ANALYSIS:
@@ -282,13 +302,15 @@ Requirements:
 - Return the complete TSX in tsxCode and the compositionConfig object`;
 
   if (images && images.length > 0) {
-    const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: Buffer }> = [
+    const parts: Array<{ type: 'text'; text: string } | { type: 'image'; image: string; mimeType?: string }> = [
       { type: 'text', text: userContent as string },
     ];
     for (const img of images) {
+      const base64 = await fileToBase64(img);
       parts.push({
         type: 'image',
-        image: Buffer.from(await img.arrayBuffer()),
+        image: base64,
+        mimeType: img.type || 'image/png',
       });
     }
     userContent = parts;
@@ -376,13 +398,21 @@ STRUCTURE:
 - NO other exports allowed
 
 IMAGES:
-- The user may attach reference images for style/color/mood guidance ONLY
-- DO NOT try to embed these images in the code — they are reference only, no URLs available
-- NEVER use external image URLs (e.g. Wikimedia, Unsplash, stock photos) — they fail to load
-- NEVER use \`staticFile()\` — files don't exist on the server
-- NEVER use \`<img>\` HTML tags — they won't render in Remotion's canvas
-- Instead use: solid color divs, CSS gradients, geometric shapes, borders, and typography as visual elements
-- Match the style, colors, and mood of reference images using code-based elements (colors, gradients, shapes, text)
+- The user may attach images as **base64 data URLs** (e.g., \`data:image/png;base64,...\`)
+- **YOU CAN USE THESE IMAGES** in the generated code using \`<Img>\` from Remotion:
+  \`\`\`tsx
+  import { Img } from 'remotion';
+  
+  <Img 
+    src="data:image/png;base64,iVBORw0KGgo..." 
+    style={{ width: 400, height: 300, objectFit: 'cover' }} 
+  />
+  \`\`\`
+- **Animate images** with \`interpolate()\`, \`useCurrentFrame()\`, opacity, scale, etc.
+- **NEVER** use external image URLs (e.g., Wikimedia, Unsplash, stock photos) — they fail to load
+- **NEVER** use \`staticFile()\` — files don't exist on the server
+- **NEVER** use \`<img>\` HTML tags — use \`<Img>\` from remotion instead
+- If no images provided, use: solid color divs, CSS gradients, geometric shapes, borders, and typography
 
 FORBIDDEN (WILL BREAK RENDERING):
 - NO \`<img>\` tags — use \`<Img>\` from remotion
@@ -413,19 +443,19 @@ export async function generateRemotionFromPrompt(
   prompt: string,
   images?: File[],
 ): Promise<RemotionOutput> {
-  // Build user content: text + optional images
+  // Build user content: text + optional images as base64
   const userContent: Array<
     | { type: 'text'; text: string }
-    | { type: 'image'; image: Buffer; mimeType?: string }
+    | { type: 'image'; image: string; mimeType?: string }
   > = [{ type: 'text', text: prompt }];
 
   // Add images if provided
   if (images && images.length > 0) {
     for (const img of images) {
-      const buffer = Buffer.from(await img.arrayBuffer());
+      const base64 = await fileToBase64(img);
       userContent.push({
         type: 'image',
-        image: buffer,
+        image: base64,
         mimeType: img.type || 'image/png',
       });
     }
