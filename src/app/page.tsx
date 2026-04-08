@@ -383,9 +383,10 @@ function ResultsView() {
   // The code that's currently being previewed/rendered
   const [remotionCode, setRemotionCode] = useState('');
 
-  // Reset local state when pipeline status changes to idle or error
+  // Reset local state when pipeline is running, idle, or in error
+  // This ensures old video doesn't persist when generating new content
   React.useEffect(() => {
-    if (status === 'idle' || status === 'error') {
+    if (status === 'idle' || status === 'error' || status === 'analyzing' || status === 'strategizing' || status === 'generating') {
       setRemotionCode('');
       setCustomCode('');
       setUseCustomCode(false);
@@ -395,17 +396,16 @@ function ResultsView() {
     }
   }, [status]);
 
-  // Initialize code from AI output or custom code
-  const currentCode = useCustomCode && customCode.trim() ? customCode : remotionCode || remotionOutput?.tsxCode || '';
-
-  // If the AI output changes, update the code
+  // Sync remotionCode with remotionOutput from the store
   React.useEffect(() => {
-    if (remotionOutput?.tsxCode && !remotionCode) {
+    if (remotionOutput?.tsxCode) {
       setRemotionCode(remotionOutput.tsxCode);
     }
-  }, [remotionOutput, remotionCode]);
+  }, [remotionOutput?.tsxCode]);
 
   // Compile the current code for rendering
+  const currentCode = useCustomCode && customCode.trim() ? customCode : remotionCode;
+
   const compilationResult = useCompilation(currentCode);
   const { Component, extractedProps } = compilationResult;
 
