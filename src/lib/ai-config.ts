@@ -18,10 +18,10 @@ export const AI_MODELS = {
   videoAnalysis: googleProvider('gemini-3.1-flash-lite-preview'),
 
   // High reasoning, complex research/coding - Free tier
-  strategy: googleProvider('gemini-3.1-flash-lite-preview'),
+  strategy: googleProvider('gemini-3-flash-preview'),
 
   // Code generation (Remotion TSX) - Free tier
-  codeGen: googleProvider('gemini-3.1-flash-lite-preview'),
+  codeGen: googleProvider('gemini-3-flash-preview'),
 } as const;
 
 export type AiModelKey = keyof typeof AI_MODELS;

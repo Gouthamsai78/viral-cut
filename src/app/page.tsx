@@ -383,6 +383,18 @@ function ResultsView() {
   // The code that's currently being previewed/rendered
   const [remotionCode, setRemotionCode] = useState('');
 
+  // Reset local state when pipeline status changes to idle or error
+  React.useEffect(() => {
+    if (status === 'idle' || status === 'error') {
+      setRemotionCode('');
+      setCustomCode('');
+      setUseCustomCode(false);
+      setActiveTab('preview');
+      setDownloadError(null);
+      setShowRenderModal(false);
+    }
+  }, [status]);
+
   // Initialize code from AI output or custom code
   const currentCode = useCustomCode && customCode.trim() ? customCode : remotionCode || remotionOutput?.tsxCode || '';
 
@@ -936,10 +948,6 @@ export default function Home() {
       <main className="relative z-10 px-6 pt-16 pb-24 max-w-6xl mx-auto">
         {/* Hero */}
         <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 mb-6">
-            <Sparkles className="w-3.5 h-3.5 text-primary-dim" />
-            <span className="text-xs text-text-secondary font-medium">Powered by Gemini 2.5 Flash</span>
-          </div>
           <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.1] mb-4">
             <span className="text-text-primary">Transform Video Into</span>
             <br />

@@ -52,6 +52,14 @@ export const useAppStore = create<AppStore>((set, get) => ({
   setVideoFile: (file) => set({ videoFile: file }),
   setImages: (images) => set({ images }),
   setPrompt: (prompt) => set({ prompt }),
+  resetPipeline: () => set({
+    status: 'idle',
+    error: null,
+    steps: [...STEPS],
+    analysis: null,
+    strategy: null,
+    remotionOutput: null,
+  }),
 
   reset: () => set({
     videoFile: null,
