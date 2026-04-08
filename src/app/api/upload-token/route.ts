@@ -11,6 +11,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       onBeforeGenerateToken: async (pathname) => {
         return {
           maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+          addRandomSuffix: true,
         };
       },
       onUploadCompleted: async ({ blob }) => {

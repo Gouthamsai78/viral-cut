@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { del } from '@vercel/blob';
 import { analyzeVideo } from '@/agents/video-analyzer';
 import { generateStrategy } from '@/agents/engagement-strategist';
 import { generateRemotionCode, generateRemotionFromPrompt } from '@/agents/remotion-codegen';
@@ -6,9 +7,11 @@ import { generateRemotionCode, generateRemotionFromPrompt } from '@/agents/remot
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  let videoUrl: string | null = null;
+
   try {
     const formData = await req.formData();
-    const videoUrl = formData.get('videoUrl') as string;
+    videoUrl = formData.get('videoUrl') as string;
     const prompt = formData.get('prompt') as string;
     const imageFiles = formData.getAll('images') as File[];
     const images = imageFiles.filter((f): f is File => f instanceof File && f.size > 0);
@@ -45,5 +48,15 @@ export async function POST(req: NextRequest) {
     const message = error instanceof Error ? error.message : 'Pipeline failed';
     console.error('[Pipeline Error]', error);
     return NextResponse.json({ error: message }, { status: 500 });
+  } finally {
+    // Always delete the uploaded video after processing (success or error)
+    if (videoUrl) {
+      try {
+        await del(videoUrl);
+        console.log('[Cleanup] Deleted video:', videoUrl);
+      } catch (delError) {
+        console.error('[Cleanup] Failed to delete video:', videoUrl, delError);
+      }
+    }
   }
 }
