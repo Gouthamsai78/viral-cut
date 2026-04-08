@@ -2,15 +2,19 @@
 
 import type { RemotionOutput } from '@/agents/schemas';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { useAppStore } from '@/stores/app-store';
-import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2, AlertTriangle, Wand2, Palette } from 'lucide-react';
+import { Zap, Sparkles, Film, Loader2, CheckCircle2, XCircle, Clock, Code2, BarChart3, Eye, Download, Play, Upload, MousePointer2, AlertTriangle, Wand2, Palette, ArrowRight, TrendingUp, Users, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Player } from '@remotion/player';
 import { useCompilation } from '@/hooks/use-compilation';
 import { useClientRender } from '@/hooks/use-client-render';
 import { ChatEditor } from '@/components/chat-editor';
 import { PropertyEditor } from '@/components/property-editor';
+import { FilmGrain } from '@/components/film-grain';
+import { AnimatedBackground } from '@/components/animated-bg';
+import { TrustBar } from '@/components/trust-bar';
+import { ProgressTracker } from '@/components/progress-tracker';
 
 // ── Remotion Player Component (NPM Package + Babel Transpilation) ──
 function RemotionPlayerBridge({ output }: { output: RemotionOutput }) {
@@ -248,7 +252,7 @@ function UnifiedInput() {
           <button
             onClick={handleSubmit}
             disabled={isRunning || !hasInput}
-            className="gradient-btn rounded-xl px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-40"
+            className="btn-primary rounded-xl px-5 py-2 text-sm font-semibold flex items-center gap-2 disabled:opacity-40"
           >
             {isRunning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             Generate
@@ -284,90 +288,9 @@ function UnifiedInput() {
   );
 }
 
-// ── Pipeline Progress ──
+// ── Pipeline Progress (deprecated - using ProgressTracker component) ──
 function PipelineProgress() {
-  const { steps, status, error } = useAppStore();
-
-  if (status === 'idle') return null;
-
-  return (
-    <div className="w-full max-w-xl mx-auto mt-12 fade-in">
-      <div className="glass-strong rounded-2xl p-6">
-        <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-widest mb-6">
-          AI Pipeline
-        </h3>
-        <div className="space-y-4">
-          {steps.map((step, i) => (
-            <div key={step.name} className="flex items-start gap-4">
-              {/* Status icon */}
-              <div className="mt-0.5">
-                {step.status === 'complete' && (
-                  <CheckCircle2 className="w-5 h-5 text-accent-green" />
-                )}
-                {step.status === 'running' && (
-                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                )}
-                {step.status === 'error' && (
-                  <XCircle className="w-5 h-5 text-accent-red" />
-                )}
-                {step.status === 'pending' && (
-                  <Clock className="w-5 h-5 text-text-muted" />
-                )}
-              </div>
-
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className={cn(
-                    "text-sm font-medium",
-                    step.status === 'complete' && "text-accent-green",
-                    step.status === 'running' && "text-primary-dim",
-                    step.status === 'error' && "text-accent-red",
-                    step.status === 'pending' && "text-text-muted",
-                  )}>
-                    {step.name}
-                  </span>
-                  {step.status === 'running' && (
-                    <span className="text-xs text-primary-light px-2 py-0.5 rounded-full bg-primary/10">
-                      In Progress
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-text-muted mt-0.5">{step.description}</p>
-              </div>
-
-              {/* Step number */}
-              <span className="text-xs text-text-muted font-mono">
-                {String(i + 1).padStart(2, '0')}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Progress bar */}
-        {(
-          <div className="mt-6 h-1 bg-surface-high rounded-full overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-1000 ease-out",
-                status === 'error' ? "bg-accent-red" : "bg-gradient-to-r from-primary-light to-secondary",
-                status === 'complete' && "w-full",
-                status === 'analyzing' && "w-[15%] shimmer",
-                status === 'strategizing' && "w-[45%] shimmer",
-                status === 'generating' && "w-[75%] shimmer",
-              )}
-            />
-          </div>
-        )}
-
-        {error && (
-          <div className="mt-4 p-3 rounded-xl bg-accent-red/10 border border-accent-red/20">
-            <p className="text-sm text-accent-red">{error}</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <ProgressTracker />;
 }
 
 // ── Results View ──
@@ -784,13 +707,13 @@ export default MyComponent;`}
           <button
             onClick={handleDownload}
             disabled={!isSupported || !Component}
-            className="gradient-btn rounded-xl px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-50 relative group"
+            className="btn-primary rounded-xl px-6 py-3 text-sm flex items-center gap-2 disabled:opacity-50 relative group"
             title={!isSupported ? 'Client-side rendering is not supported in your browser' : !Component ? 'Component not compiled yet' : 'Export as MP4'}
           >
             <Download className="w-4 h-4" /> Export High-Quality Video
           </button>
         )}
-        <button onClick={reset} className="ghost-btn rounded-xl px-6 py-3 text-sm">
+        <button onClick={reset} className="btn-ghost rounded-xl px-6 py-3 text-sm">
           ← Analyze another video
         </button>
       </div>
@@ -875,50 +798,123 @@ export default MyComponent;`}
 // ── Stat Card ──
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="glass rounded-xl p-4 text-center">
-      <p className="text-2xl font-bold gradient-text">{value}</p>
+    <div className="glass rounded-xl p-4 text-center card-hover">
+      <p className="text-2xl font-bold text-display gradient-text">{value}</p>
       <p className="text-xs text-text-muted mt-1 uppercase tracking-wider">{label}</p>
     </div>
   );
 }
 
-// ── Feature Cards ──
+// ── Feature Cards (Bento Grid Layout) ──
 function FeatureCards() {
   const features = [
     {
       icon: BarChart3,
       title: 'Video Analyzer',
       desc: 'AI breaks down scenes, pacing, engagement metrics, and audio profile',
-      color: 'text-primary-dim',
+      color: 'text-primary',
       bg: 'bg-primary/10',
+      size: 'large',
+      metric: '10x faster',
     },
     {
       icon: Eye,
       title: 'Engagement Strategist',
-      desc: 'Data-driven retention fixes, hook strategies, and motion graphic placements',
-      color: 'text-secondary-light',
+      desc: 'Data-driven retention fixes and hook strategies',
+      color: 'text-secondary',
       bg: 'bg-secondary/10',
+      size: 'medium',
+      metric: '+50% retention',
     },
     {
       icon: Code2,
       title: 'Remotion Code Gen',
-      desc: 'AI-generated TSX motion graphics — text slams, lower thirds, transitions',
+      desc: 'Production-ready TSX motion graphics',
       color: 'text-tertiary',
       bg: 'bg-tertiary/10',
+      size: 'medium',
+      metric: 'Auto-generated',
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl mx-auto mt-16">
-      {features.map((f) => (
-        <div key={f.title} className="glass rounded-2xl p-6 hover:glow-violet transition-shadow duration-300 group">
-          <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-4", f.bg)}>
-            <f.icon className={cn("w-5 h-5", f.color)} />
+    <div className="w-full max-w-5xl mx-auto mt-16">
+      {/* Section header */}
+      <div className="text-center mb-10">
+        <h2 className="text-heading text-2xl md:text-3xl text-text-primary mb-2">
+          Powered by AI, Designed for Creators
+        </h2>
+        <p className="text-text-secondary max-w-lg mx-auto">
+          Three-step pipeline that transforms raw footage into viral-ready content
+        </p>
+      </div>
+
+      {/* Bento grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Large card - spans 2 columns on desktop */}
+        <div className="md:col-span-2 glass-strong rounded-2xl p-8 card-hover group">
+          <div className="flex items-start justify-between mb-6">
+            <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center", features[0].bg)}>
+              {React.createElement(features[0].icon, { className: cn("w-6 h-6", features[0].color) })}
+            </div>
+            <span className="text-xs font-mono text-accent-green px-3 py-1 rounded-full bg-accent-green/10 border border-accent-green/20">
+              {features[0].metric}
+            </span>
           </div>
-          <h3 className="text-base font-semibold text-text-primary mb-1">{f.title}</h3>
-          <p className="text-sm text-text-muted leading-relaxed">{f.desc}</p>
+          <h3 className="text-heading text-xl text-text-primary mb-2">{features[0].title}</h3>
+          <p className="text-text-secondary leading-relaxed mb-6">{features[0].desc}</p>
+          
+          {/* Visual preview */}
+          <div className="glass-subtle rounded-xl p-4 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-text-muted">Scene 1</span>
+              <span className="font-mono text-text-muted">0:00 → 2:30</span>
+            </div>
+            <div className="h-2 bg-surface-highest rounded-full overflow-hidden">
+              <div className="h-full w-3/4 bg-gradient-to-r from-primary to-primary-light rounded-full" />
+            </div>
+            <div className="flex gap-2 mt-3">
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary">Fast motion</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-accent-warm/10 text-accent-warm">High energy</span>
+            </div>
+          </div>
         </div>
-      ))}
+
+        {/* Medium card 1 */}
+        <div className="glass-strong rounded-2xl p-6 card-hover group">
+          <div className="flex items-start justify-between mb-4">
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", features[1].bg)}>
+              {React.createElement(features[1].icon, { className: cn("w-5 h-5", features[1].color) })}
+            </div>
+            <TrendingUp className="w-4 h-4 text-accent-green" />
+          </div>
+          <h3 className="text-heading text-base text-text-primary mb-1">{features[1].title}</h3>
+          <p className="text-sm text-text-secondary leading-relaxed">{features[1].desc}</p>
+          <div className="mt-4 text-xs font-mono text-accent-green">
+            ↓ Dropoff at 4.2s → Add hook
+          </div>
+        </div>
+
+        {/* Medium card 2 */}
+        <div className="glass-strong rounded-2xl p-6 card-hover group">
+          <div className="flex items-start justify-between mb-4">
+            <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center", features[2].bg)}>
+              {React.createElement(features[2].icon, { className: cn("w-5 h-5", features[2].color) })}
+            </div>
+            <Zap className="w-4 h-4 text-accent-warm" />
+          </div>
+          <h3 className="text-heading text-base text-text-primary mb-1">{features[2].title}</h3>
+          <p className="text-sm text-text-secondary leading-relaxed">{features[2].desc}</p>
+          <div className="mt-4 text-xs font-mono text-tertiary">
+            {'<'}TextOverlay position="center"{' />'}
+          </div>
+        </div>
+      </div>
+
+      {/* Social proof below features */}
+      <div className="mt-12 flex justify-center">
+        <TrustBar variant="hero" />
+      </div>
     </div>
   );
 }
@@ -930,15 +926,17 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background relative overflow-hidden">
-      {/* Background gradient orbs */}
-      <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] bg-secondary/5 rounded-full blur-[100px] pointer-events-none" />
+      {/* Film grain overlay for cinematic feel */}
+      <FilmGrain opacity={0.025} />
+      
+      {/* Animated background with parallax */}
+      <AnimatedBackground />
 
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
-        <span className="text-xl font-bold gradient-text tracking-tight">ViralCut</span>
+        <span className="text-display text-xl gradient-text tracking-tight">ViralCut</span>
         <div className="flex items-center gap-4">
-          <span className="text-xs text-text-muted px-3 py-1.5 rounded-full bg-surface-high">
+          <span className="text-xs text-text-muted px-3 py-1.5 rounded-full bg-surface-high border border-border-ghost">
             MVP Preview
           </span>
         </div>
@@ -946,24 +944,37 @@ export default function Home() {
 
       {/* Content */}
       <main className="relative z-10 px-6 pt-16 pb-24 max-w-6xl mx-auto">
-        {/* Hero */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight leading-[1.1] mb-4">
+        {/* Hero - AIDA Framework */}
+        <div className="text-center mb-16 max-w-4xl mx-auto">
+          {/* Attention - Bold headline with specific benefit */}
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-subtle mb-6 border border-border-subtle">
+            <Zap className="w-4 h-4 text-accent-warm" />
+            <span className="text-xs text-text-secondary font-medium">10x faster than manual editing</span>
+          </div>
+          
+          <h1 className="text-display text-4xl sm:text-5xl md:text-6xl lg:text-7xl leading-[1.1] mb-6">
             <span className="text-text-primary">Transform Video Into</span>
             <br />
             <span className="gradient-text">Viral Content</span>
           </h1>
-          <p className="text-lg text-text-secondary max-w-xl mx-auto leading-relaxed">
-            Upload a video, describe what you want, or attach reference images — AI creates production-ready Remotion motion graphics automatically.
+          
+          {/* Interest - Clear value proposition */}
+          <p className="text-lg md:text-xl text-text-secondary max-w-2xl mx-auto leading-relaxed mb-8">
+            Upload a video, describe what you want, or attach reference images — AI creates production-ready motion graphics automatically.
           </p>
+
+          {/* Desire - Social proof */}
+          <div className="flex justify-center mb-8">
+            <TrustBar variant="compact" />
+          </div>
         </div>
 
-        {/* Unified Input */}
+        {/* Action - Input component */}
         <UnifiedInput />
 
         {/* Progress or Results */}
-        {!showResults && <PipelineProgress />}
-        <ResultsView />
+        {!showResults && status !== 'idle' && <PipelineProgress />}
+        {showResults && <ResultsView />}
 
         {/* Features (only when idle) */}
         {status === 'idle' && <FeatureCards />}
@@ -972,7 +983,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="relative z-10 text-center py-8 border-t border-border-ghost">
         <p className="text-xs text-text-muted">
-          ViralCut MVP · Video Analyzer + Motion Graphics Generator
+          ViralCut · AI-Powered Video Editor · Built for Creators
         </p>
       </footer>
     </div>

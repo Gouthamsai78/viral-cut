@@ -81,10 +81,15 @@ export function useCompilation(code: string): CompilationResult {
       return { Component, error: null, extractedProps, compositionConfig: compositionConfig as Record<string, unknown> | null };
     } catch (error) {
       console.error('Compilation error:', error);
+      
+      // Parse the error message to give better feedback
       const errorMessage = error instanceof Error ? error.message : 'Unknown compilation error';
+      const lineMatch = errorMessage.match(/line (\d+)|\((\d+):(\d+)\)/i);
+      const lineInfo = lineMatch ? ` at line ${lineMatch[1] || lineMatch[2]}` : '';
+      
       return {
         Component: null,
-        error: `Compilation failed: ${errorMessage}\n\nMake sure your code:\n1. Has valid TypeScript/JSX syntax\n2. Uses only 'remotion' and 'react' imports\n3. Has "export default ComponentName"`,
+        error: `Syntax error${lineInfo}: The AI generated invalid code. Try regenerating.\n\nDetails: ${errorMessage.split('\n')[0]}`,
         extractedProps: [],
         compositionConfig: null,
       };

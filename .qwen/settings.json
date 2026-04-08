@@ -17,7 +17,11 @@
       "WebFetch(www.remotion.dev)",
       "Bash(npm *)",
       "Bash(npx *)",
-      "WebFetch(www.llmonestop.com)"
+      "WebFetch(www.llmonestop.com)",
+      "WebFetch(21st.dev)",
+      "WebFetch(fireart.studio)",
+      "WebFetch(enovtec.com)",
+      "WebFetch(www.nethority.com)"
     ]
   },
   "$version": 3
