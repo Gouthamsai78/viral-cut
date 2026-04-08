@@ -101,9 +101,50 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const performFetch = async () => {
       try {
-        const formData = new FormData();
+        let videoUrl: string | null = null;
 
-        if (videoFile) formData.append('videoFile', videoFile);
+        // If video file exists, upload directly to Vercel Blob from browser
+        if (videoFile) {
+          set({ status: 'uploading' });
+
+          // Step 1: Get upload token
+          const pathname = `videos/${videoFile.name}`;
+          const tokenRes = await fetch('/api/upload-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pathname, multipart: true }),
+          });
+
+          if (!tokenRes.ok) {
+            const errorData = await tokenRes.json();
+            throw new Error(errorData.error || 'Failed to get upload token');
+          }
+
+          const { token } = await tokenRes.json();
+
+          // Step 2: Upload directly to Vercel Blob from browser
+          const uploadRes = await fetch(`https://blob.vercel-storage.com?filename=${encodeURIComponent(videoFile.name)}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': videoFile.type || 'video/mp4',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: videoFile,
+          });
+
+          if (!uploadRes.ok) {
+            throw new Error('Failed to upload video');
+          }
+
+          const uploadData = await uploadRes.json();
+          videoUrl = uploadData.url;
+        }
+
+        // Step 3: Process with pipeline
+        set({ status: 'analyzing' });
+
+        const formData = new FormData();
+        if (videoUrl) formData.append('videoUrl', videoUrl);
         for (const img of images) formData.append('images', img);
         if (hasPromptText) formData.append('prompt', prompt.trim());
 

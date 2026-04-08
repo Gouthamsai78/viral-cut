@@ -8,12 +8,12 @@ export const maxDuration = 120;
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
-    const videoFile = formData.get('videoFile') as File;
+    const videoUrl = formData.get('videoUrl') as string;
     const prompt = formData.get('prompt') as string;
     const imageFiles = formData.getAll('images') as File[];
     const images = imageFiles.filter((f): f is File => f instanceof File && f.size > 0);
 
-    const hasVideo = !!videoFile;
+    const hasVideo = !!videoUrl;
     const hasPrompt = prompt?.trim().length > 0;
 
     if (!hasVideo && !hasPrompt) {
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     if (hasVideo) {
       // Video-based pipeline
-      analysis = await analyzeVideo(null, videoFile);
+      analysis = await analyzeVideo(videoUrl);
       strategy = await generateStrategy(analysis);
 
       // If prompt is also provided, pass images to code generation

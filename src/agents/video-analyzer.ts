@@ -28,10 +28,28 @@ export async function analyzeVideo(videoUrl: string | null, videoFile?: File | n
         text: 'Analyze the uploaded video for maximum social media engagement optimization.',
       },
     ];
+  } else if (videoUrl) {
+    // Fetch video from URL and convert to buffer for Gemini
+    const response = await fetch(videoUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video from URL: ${response.statusText}`);
+    }
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const contentType = response.headers.get('content-type') || 'video/mp4';
+    
+    userContent = [
+      {
+        type: 'file' as const,
+        data: buffer,
+        mediaType: contentType,
+      },
+      {
+        type: 'text' as const,
+        text: 'Analyze this video for maximum social media engagement optimization.',
+      },
+    ];
   } else {
-    userContent = videoUrl
-      ? `Analyze this video for maximum social media engagement optimization: ${videoUrl}`
-      : 'Analyze the uploaded video for maximum social media engagement optimization.';
+    userContent = 'Analyze the uploaded video for maximum social media engagement optimization.';
   }
 
   const { output } = await generateText({

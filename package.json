@@ -13,6 +13,7 @@
     "@ai-sdk/react": "^3.0.152",
     "@remotion/player": "^4.0.445",
     "@remotion/web-renderer": "4.0.445",
+    "@vercel/blob": "^2.3.3",
     "ai": "^6.0.146",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
