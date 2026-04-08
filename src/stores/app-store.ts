@@ -107,37 +107,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
         if (videoFile) {
           set({ status: 'uploading' });
 
-          // Step 1: Get upload token
-          const pathname = `videos/${videoFile.name}`;
-          const tokenRes = await fetch('/api/upload-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pathname, multipart: true }),
-          });
+          // Upload directly to Vercel Blob using the client SDK
+          const { upload } = await import('@vercel/blob/client');
 
-          if (!tokenRes.ok) {
-            const errorData = await tokenRes.json();
-            throw new Error(errorData.error || 'Failed to get upload token');
-          }
-
-          const { token } = await tokenRes.json();
-
-          // Step 2: Upload directly to Vercel Blob from browser
-          const uploadRes = await fetch(`https://blob.vercel-storage.com?filename=${encodeURIComponent(videoFile.name)}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': videoFile.type || 'video/mp4',
-              'Authorization': `Bearer ${token}`,
+          const result = await upload(`videos/${videoFile.name}`, videoFile, {
+            access: 'public',
+            handleUploadUrl: '/api/upload-token',
+            contentType: videoFile.type || 'video/mp4',
+            multipart: true,
+            onUploadProgress: (progress) => {
+              console.log(`Upload progress: ${Math.round(progress.percentage)}%`);
             },
-            body: videoFile,
           });
 
-          if (!uploadRes.ok) {
-            throw new Error('Failed to upload video');
-          }
-
-          const uploadData = await uploadRes.json();
-          videoUrl = uploadData.url;
+          videoUrl = result.url;
         }
 
         // Step 3: Process with pipeline

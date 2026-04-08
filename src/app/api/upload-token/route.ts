@@ -1,24 +1,28 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client';
+import { handleUpload, type HandleUploadBody } from '@vercel/blob/client';
+import { NextResponse } from 'next/server';
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request): Promise<NextResponse> {
+  const body: HandleUploadBody = await request.json();
+
   try {
-    const { pathname, multipart } = await req.json();
-
-    if (!pathname) {
-      return NextResponse.json({ error: 'pathname is required' }, { status: 400 });
-    }
-
-    // Generate a client upload token
-    const token = await generateClientTokenFromReadWriteToken({
-      pathname,
-      maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+    const jsonResponse = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname) => {
+        return {
+          maximumSizeInBytes: 500 * 1024 * 1024, // 500MB
+        };
+      },
+      onUploadCompleted: async ({ blob }) => {
+        console.log('Upload completed:', blob.url);
+      },
     });
 
-    return NextResponse.json({ token });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Failed to generate upload token';
-    console.error('[Upload Token Error]', error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(jsonResponse);
+  } catch (error) {
+    return NextResponse.json(
+      { error: (error as Error).message },
+      { status: 400 },
+    );
   }
 }
