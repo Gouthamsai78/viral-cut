@@ -2,10 +2,33 @@ import { NextRequest } from 'next/server';
 import { streamText, tool, convertToModelMessages, stepCountIs, UIMessage } from 'ai';
 import { z } from 'zod';
 import { AI_MODELS } from '@/lib/ai-config';
+import { chatRateLimiter, getClientIp } from '@/lib/rate-limiter';
 
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
+  // Rate limiting check
+  const clientIp = getClientIp(req.headers);
+  const rateLimit = chatRateLimiter.check(clientIp);
+  
+  if (!rateLimit.allowed) {
+    const retryAfter = Math.max(1, Math.ceil((rateLimit.resetTime - Date.now()) / 1000));
+    return new Response(
+      JSON.stringify({ 
+        error: 'Rate limit exceeded. Please try again later.', 
+        retryAfter,
+      }),
+      {
+        status: 429,
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Reset': String(rateLimit.resetTime),
+          'Retry-After': String(retryAfter),
+        },
+      }
+    );
+  }
+
   try {
     const { messages }: { messages: UIMessage[] } = await req.json();
 
@@ -19,7 +42,7 @@ export async function POST(req: NextRequest) {
     const result = streamText({
       model: AI_MODELS.codeGen,
       messages: await convertToModelMessages(messages),
-      stopWhen: stepCountIs(10),
+      stopWhen: stepCountIs(5), // Reduced from 10 to prevent excessive token usage
       system: `You are an expert Remotion TSX video editor assistant. The user has generated motion graphics code for their video, and they want to modify it using natural language.
 
 YOUR CAPABILITIES:

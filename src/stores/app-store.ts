@@ -1,12 +1,22 @@
 import { create } from 'zustand';
 import type { VideoAnalysis, EngagementStrategy, RemotionOutput } from '@/agents/schemas';
 
-type PipelineStatus = 'idle' | 'uploading' | 'analyzing' | 'strategizing' | 'generating' | 'complete' | 'error';
+type PipelineState = 'idle' | 'uploading' | 'analyzing' | 'strategizing' | 'generating' | 'complete' | 'error';
 
 interface PipelineStep {
   name: string;
   status: 'pending' | 'running' | 'complete' | 'error';
   description: string;
+}
+
+interface RealTimeStatus {
+  step: string;
+  stepIndex: number;
+  progress: number;
+  agent?: string;
+  model?: string;
+  message: string;
+  details: string;
 }
 
 interface AppStore {
@@ -16,9 +26,10 @@ interface AppStore {
   prompt: string;
 
   // Pipeline state
-  status: PipelineStatus;
+  status: PipelineState;
   error: string | null;
   steps: PipelineStep[];
+  currentStatus: RealTimeStatus | null; // Real-time status from server
 
   // Results
   analysis: VideoAnalysis | null;
@@ -34,8 +45,9 @@ interface AppStore {
 }
 
 const STEPS: PipelineStep[] = [
-  { name: 'Analyzing', status: 'pending', description: 'AI processes your input and generates motion graphics' },
-  { name: 'Generating', status: 'pending', description: 'Building Remotion TSX components' },
+  { name: 'Video Analysis', status: 'pending', description: 'AI breaks down scenes, pacing, engagement metrics, and audio profile' },
+  { name: 'Engagement Strategy', status: 'pending', description: 'Generates retention fixes, hook strategies, and motion graphic placements' },
+  { name: 'Code Generation', status: 'pending', description: 'Building Remotion TSX components with motion graphics' },
 ];
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -45,6 +57,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   status: 'idle',
   error: null,
   steps: [...STEPS],
+  currentStatus: null,
   analysis: null,
   strategy: null,
   remotionOutput: null,
@@ -56,6 +69,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     status: 'idle',
     error: null,
     steps: [...STEPS],
+    currentStatus: null,
     analysis: null,
     strategy: null,
     remotionOutput: null,
@@ -68,13 +82,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
     status: 'idle',
     error: null,
     steps: [...STEPS],
+    currentStatus: null,
     analysis: null,
     strategy: null,
     remotionOutput: null,
   }),
 
   runPipeline: async () => {
-    const { videoFile, images, prompt } = get();
+    const { videoFile, images, prompt, status: currentStatus } = get();
+
+    // Guard against concurrent pipeline runs
+    if (currentStatus !== 'idle' && currentStatus !== 'complete' && currentStatus !== 'error') {
+      console.warn('[Pipeline] Already running, ignoring duplicate call');
+      return;
+    }
 
     const hasVideo = !!videoFile;
     const hasPromptText = prompt.trim().length > 0;
@@ -84,9 +105,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
       return;
     }
 
+    // Create a unique run ID to detect resets
+    const runId = Date.now().toString();
     set({
       status: 'analyzing',
       error: null,
+      currentStatus: null,
       steps: STEPS.map((s, i) => ({
         ...s,
         status: i === 0 ? 'running' : 'pending',
@@ -101,7 +125,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
     const performFetch = async () => {
       try {
+        // Check if pipeline was reset during retry delay
+        if (get().status === 'idle') {
+          console.log('[Pipeline] Reset detected, aborting retry');
+          return;
+        }
         let videoUrl: string | null = null;
+        const uploadedImageUrls: string[] = [];
 
         // If video file exists, upload directly to Vercel Blob from browser
         if (videoFile) {
@@ -110,8 +140,15 @@ export const useAppStore = create<AppStore>((set, get) => ({
           // Upload directly to Vercel Blob using the client SDK
           const { upload } = await import('@vercel/blob/client');
 
+          // NOTE: Currently using 'public' access for MVP functionality.
+          // TODO: Switch to 'private' access and implement signed URL generation
+          // for better privacy. This would require:
+          // 1. Upload with access: 'private'
+          // 2. Server endpoint to generate signed download URL
+          // 3. Fetch signed URL before calling /api/pipeline
+          // 4. Update /api/pipeline to accept signed URLs
           const result = await upload(`videos/${videoFile.name}`, videoFile, {
-            access: 'public',
+            access: 'public', // FIXME: Change to 'private' when signed URLs are implemented
             handleUploadUrl: '/api/upload-token',
             contentType: videoFile.type || 'video/mp4',
             multipart: true,
@@ -123,12 +160,49 @@ export const useAppStore = create<AppStore>((set, get) => ({
           videoUrl = result.url;
         }
 
+        // Upload images to Vercel Blob (if any)
+        if (images.length > 0) {
+          set({ status: 'uploading' });
+          const { upload } = await import('@vercel/blob/client');
+
+          for (let i = 0; i < images.length; i++) {
+            const img = images[i];
+            try {
+              const result = await upload(`images/${Date.now()}-${img.name}`, img, {
+                access: 'public',
+                handleUploadUrl: '/api/upload-token',
+                contentType: img.type || 'image/png',
+                multipart: true,
+                onUploadProgress: (progress) => {
+                  console.log(`Image ${i + 1}/${images.length} upload progress: ${Math.round(progress.percentage)}%`);
+                },
+              });
+              uploadedImageUrls.push(result.url);
+            } catch (uploadError) {
+              console.error(`Failed to upload image ${i + 1}:`, uploadError);
+              // Continue with other images even if one fails
+            }
+          }
+
+          console.log(`Successfully uploaded ${uploadedImageUrls.length}/${images.length} images`);
+        }
+
         // Step 3: Process with pipeline
         set({ status: 'analyzing' });
 
         const formData = new FormData();
         if (videoUrl) formData.append('videoUrl', videoUrl);
-        for (const img of images) formData.append('images', img);
+        
+        // Add uploaded image URLs to FormData
+        if (uploadedImageUrls.length > 0) {
+          // Send first image URL for backward compatibility
+          formData.append('imageUrl', uploadedImageUrls[0]);
+          // Send all image URLs for the new API
+          for (const url of uploadedImageUrls) {
+            formData.append('imageUrls', url);
+          }
+        }
+        
         if (hasPromptText) formData.append('prompt', prompt.trim());
 
         const endpoint = hasVideo ? '/api/pipeline' : '/api/generate-from-prompt';
@@ -144,32 +218,110 @@ export const useAppStore = create<AppStore>((set, get) => ({
             const data = await res.json();
             errorMessage = data.error || errorMessage;
           } catch {
-            // If response is not JSON, get text
             const text = await res.text();
             errorMessage = text || errorMessage;
           }
           throw new Error(errorMessage);
         }
 
-        let data;
-        try {
-          data = await res.json();
-        } catch {
-          const text = await res.text();
-          throw new Error(`Invalid server response: ${text.substring(0, 100)}`);
-        }
+        // Check if response is streaming (SSE)
+        const contentType = res.headers.get('content-type');
+        if (contentType?.includes('text/event-stream')) {
+          // Consume Server-Sent Events
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let hasError = false;
 
-        set({
-          status: 'complete',
-          analysis: data.analysis ?? null,
-          strategy: data.strategy ?? null,
-          remotionOutput: data.remotionOutput,
-          steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
-        });
+          while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+
+                  // Check if it's an error event
+                  if (data.step === 'error' || data.error) {
+                    hasError = true;
+                    throw new Error(data.error || data.message || 'Pipeline failed');
+                  }
+
+                  // Check if it's a status update or complete data
+                  if (data.step && !data.analysis && !data.remotionOutput) {
+                    // Status update
+                    set({ currentStatus: data });
+
+                    // Update main status based on step
+                    if (data.step === 'analyzing') {
+                      set({ status: 'analyzing' });
+                    } else if (data.step === 'strategizing') {
+                      set({ status: 'strategizing' });
+                    } else if (data.step === 'generating') {
+                      set({ status: 'generating' });
+                    } else if (data.step === 'complete') {
+                      set({ status: 'complete' });
+                    }
+
+                    // Update step indicators
+                    set({
+                      steps: STEPS.map((s, i) => ({
+                        ...s,
+                        status: i < data.stepIndex ? 'complete' : i === data.stepIndex ? 'running' : 'pending',
+                      })),
+                    });
+                  } else if (data.analysis !== undefined || data.remotionOutput) {
+                    // Complete data
+                    set({
+                      status: 'complete',
+                      analysis: data.analysis ?? null,
+                      strategy: data.strategy ?? null,
+                      remotionOutput: data.remotionOutput,
+                      steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
+                    });
+                  }
+                } catch (e) {
+                  if (hasError || (e instanceof Error && (e.message === 'Pipeline failed' || e.message.includes('Pipeline')))) {
+                    // Re-throw error events to be caught by outer try-catch
+                    throw e;
+                  }
+                  // Skip invalid JSON
+                  console.warn('Failed to parse SSE:', e);
+                }
+              }
+            }
+          }
+        } else {
+          // Fallback to regular JSON response
+          let data;
+          try {
+            data = await res.json();
+          } catch {
+            const text = await res.text();
+            throw new Error(`Invalid server response: ${text.substring(0, 100)}`);
+          }
+
+          set({
+            status: 'complete',
+            analysis: data.analysis ?? null,
+            strategy: data.strategy ?? null,
+            remotionOutput: data.remotionOutput,
+            steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
+          });
+        }
       } catch (err: unknown) {
         if (attempt < maxRetries) {
           attempt++;
-          await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
+          // Add exponential backoff with jitter to prevent thundering herd
+          const baseDelay = 2000 * attempt;
+          const jitter = Math.random() * 1000;
+          const delay = baseDelay + jitter;
+          await new Promise(resolve => setTimeout(resolve, delay));
           return performFetch();
         }
 

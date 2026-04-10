@@ -2,6 +2,7 @@ import { transform } from 'sucrase';
 import React, { useMemo } from 'react';
 import * as Remotion from 'remotion';
 import { extractPropsFromCode, type ExtractedProperty } from './extract-props';
+import { analyzeTSXCode } from '@/lib/static-analysis';
 
 export type { ExtractedProperty } from './extract-props';
 
@@ -29,6 +30,22 @@ export function useCompilation(code: string): CompilationResult {
     if (!code?.trim()) return { Component: null, error: null, extractedProps: [], compositionConfig: null };
 
     try {
+      // ── Step 0: Static analysis for security ──
+      const analysisResult = analyzeTSXCode(code);
+      if (!analysisResult.isSafe) {
+        const issueList = analysisResult.issues
+          .map(i => `  - ${i.name}${i.line ? ` (line ${i.line})` : ''}`)
+          .join('\n');
+        
+        console.error('[Security] Dangerous patterns detected:', issueList);
+        return {
+          Component: null,
+          error: `Security check failed. Dangerous patterns detected:\n${issueList}`,
+          extractedProps: [],
+          compositionConfig: null,
+        };
+      }
+
       // ── Step 1: Extract props from source code BEFORE transpilation ──
       const extractedProps = extractPropsFromCode(code);
 
@@ -81,12 +98,12 @@ export function useCompilation(code: string): CompilationResult {
       return { Component, error: null, extractedProps, compositionConfig: compositionConfig as Record<string, unknown> | null };
     } catch (error) {
       console.error('Compilation error:', error);
-      
+
       // Parse the error message to give better feedback
       const errorMessage = error instanceof Error ? error.message : 'Unknown compilation error';
       const lineMatch = errorMessage.match(/line (\d+)|\((\d+):(\d+)\)/i);
       const lineInfo = lineMatch ? ` at line ${lineMatch[1] || lineMatch[2]}` : '';
-      
+
       return {
         Component: null,
         error: `Syntax error${lineInfo}: The AI generated invalid code. Try regenerating.\n\nDetails: ${errorMessage.split('\n')[0]}`,

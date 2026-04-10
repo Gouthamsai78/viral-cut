@@ -70,6 +70,7 @@ function UnifiedInput() {
   const [localPrompt, setLocalPrompt] = useState(prompt);
   const [dragActive, setDragActive] = useState(false);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<Map<number, string>>(new Map());
   const videoFileRef = useRef<HTMLInputElement>(null);
   const imageFileRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -85,6 +86,24 @@ function UnifiedInput() {
     }
     setVideoPreviewUrl(null);
   }, [videoFile]);
+
+  // Create image preview URLs when images change
+  React.useEffect(() => {
+    // Clean up old URLs
+    imagePreviewUrls.forEach(url => URL.revokeObjectURL(url));
+    
+    // Create new URLs
+    const newMap = new Map<number, string>();
+    images.forEach((img, i) => {
+      newMap.set(i, URL.createObjectURL(img));
+    });
+    setImagePreviewUrls(newMap);
+    
+    // Cleanup on unmount or images change
+    return () => {
+      newMap.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [images]);
 
   const handleVideoFile = (file: File) => {
     if (!file.type.startsWith('video/')) {
@@ -191,7 +210,7 @@ function UnifiedInput() {
               {images.map((img, i) => (
                 <div key={i} className="relative group">
                   <img
-                    src={URL.createObjectURL(img)}
+                    src={imagePreviewUrls.get(i) || ''}
                     alt={img.name}
                     className="w-16 h-16 rounded-lg object-cover border border-white/10"
                   />

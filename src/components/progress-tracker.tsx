@@ -1,25 +1,14 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Loader2, Clock, XCircle } from 'lucide-react';
+import React from 'react';
+import { CheckCircle2, Loader2, XCircle, Cpu, Zap, Code2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/stores/app-store';
 
 /**
- * Progress tracker with Zeigarnik effect
- * Creates psychological tension with incomplete states to drive completion
+ * Real-time progress tracker showing actual AI agent activity
+ * No mock data - shows what's actually happening behind the scenes
  */
-
-// Rotating motivational messages
-const loadingMessages = [
-  { text: "AI is watching your video", emoji: "👀" },
-  { text: "Finding the perfect hook", emoji: "🎯" },
-  { text: "Optimizing for maximum retention", emoji: "📈" },
-  { text: "Adding motion graphics", emoji: "✨" },
-  { text: "Crafting your masterpiece", emoji: "🎬" },
-  { text: "Analyzing engagement patterns", emoji: "🧠" },
-  { text: "Generating viral strategies", emoji: "🚀" },
-];
 
 interface StepIndicatorProps {
   step: {
@@ -29,10 +18,23 @@ interface StepIndicatorProps {
   };
   index: number;
   total: number;
+  isActive: boolean;
+  agentInfo?: {
+    agent?: string;
+    model?: string;
+    message?: string;
+    details?: string;
+  };
 }
 
-function StepIndicator({ step, index, total }: StepIndicatorProps) {
+function StepIndicator({ step, index, total, isActive, agentInfo }: StepIndicatorProps) {
   const isLast = index === total - 1;
+
+  const agentIcons: Record<string, React.ReactNode> = {
+    'Video Analyzer': <Cpu className="w-4 h-4" />,
+    'Engagement Strategist': <Zap className="w-4 h-4" />,
+    'Remotion Code Generator': <Code2 className="w-4 h-4" />,
+  };
 
   return (
     <div className="flex items-start gap-4">
@@ -76,7 +78,12 @@ function StepIndicator({ step, index, total }: StepIndicatorProps) {
 
       {/* Step content */}
       <div className="flex-1 pt-1 pb-8">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 mb-1">
+          {agentInfo?.agent && agentIcons[agentInfo.agent] && (
+            <span className="text-text-muted">
+              {agentIcons[agentInfo.agent]}
+            </span>
+          )}
           <h4 className={cn(
             "text-sm font-semibold transition-colors",
             step.status === 'complete' && "text-accent-green",
@@ -89,55 +96,57 @@ function StepIndicator({ step, index, total }: StepIndicatorProps) {
 
           {step.status === 'running' && (
             <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium animate-pulse">
-              In Progress
+              Running
             </span>
           )}
         </div>
 
-        <p className="text-xs text-text-muted mt-1 leading-relaxed">
-          {step.description}
-        </p>
+        {/* Real agent information */}
+        {agentInfo && isActive && (
+          <div className="space-y-1.5 mt-2">
+            {agentInfo.model && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-text-muted">Model:</span>
+                <code className="text-[10px] px-1.5 py-0.5 rounded bg-surface-highest text-primary-dim font-mono">
+                  {agentInfo.model}
+                </code>
+              </div>
+            )}
+            {agentInfo.message && (
+              <p className="text-xs text-text-secondary">
+                {agentInfo.message}
+              </p>
+            )}
+            {agentInfo.details && (
+              <p className="text-[11px] text-text-muted leading-relaxed">
+                {agentInfo.details}
+              </p>
+            )}
+          </div>
+        )}
 
-        {/* Running state - show motivational message */}
-        {step.status === 'running' && <MotivationalMessage />}
+        {/* Fallback description when no agent info */}
+        {!agentInfo && (
+          <p className="text-xs text-text-muted mt-1 leading-relaxed">
+            {step.description}
+          </p>
+        )}
       </div>
-    </div>
-  );
-}
-
-// Rotating message component
-function MotivationalMessage() {
-  const [messageIndex, setMessageIndex] = React.useState(0);
-
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % loadingMessages.length);
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  const message = loadingMessages[messageIndex];
-
-  return (
-    <div className="mt-2 text-xs text-text-secondary animate-pulse flex items-center gap-1.5">
-      <span>{message.emoji}</span>
-      <span>{message.text}...</span>
     </div>
   );
 }
 
 // Main progress tracker
 export function ProgressTracker() {
-  const { steps, status, error } = useAppStore();
+  const { steps, status, error, currentStatus } = useAppStore();
 
   if (status === 'idle') return null;
 
-  // Calculate progress percentage (starts at 5% for endowed progress effect)
+  // Calculate progress percentage
   const completedSteps = steps.filter(s => s.status === 'complete').length;
   const baseProgress = 5;
-  const stepProgress = (completedSteps / steps.length) * 95;
-  const progressPercentage = baseProgress + stepProgress;
+  const liveProgress = currentStatus?.progress || 0;
+  const progressPercentage = status === 'complete' ? 100 : (liveProgress > 0 ? liveProgress : baseProgress + (completedSteps / steps.length) * 95);
 
   return (
     <div className="w-full max-w-xl mx-auto mt-12 fade-in">
@@ -145,17 +154,19 @@ export function ProgressTracker() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-heading text-base text-text-primary">
-            Creating Your Masterpiece
+            {status === 'complete' ? '✅ Your Masterpiece is Ready!' :
+             status === 'error' ? '❌ Processing Failed' :
+             '🎬 AI is Working...'}
           </h3>
 
-          {status !== 'error' && status !== 'complete' && (
+          {status !== 'error' && status !== 'complete' && currentStatus && (
             <span className="text-xs text-text-muted font-mono">
-              {completedSteps}/{steps.length} complete
+              {currentStatus.progress}%
             </span>
           )}
         </div>
 
-        {/* Steps */}
+        {/* Steps with real-time agent info */}
         <div className="mb-6">
           {steps.map((step, i) => (
             <StepIndicator
@@ -163,35 +174,37 @@ export function ProgressTracker() {
               step={step}
               index={i}
               total={steps.length}
+              isActive={currentStatus?.stepIndex === i}
+              agentInfo={
+                currentStatus && currentStatus.stepIndex === i
+                  ? {
+                      agent: currentStatus.agent,
+                      model: currentStatus.model,
+                      message: currentStatus.message,
+                      details: currentStatus.details,
+                    }
+                  : undefined
+              }
             />
           ))}
         </div>
 
-        {/* Progress bar with endowed progress */}
+        {/* Progress bar */}
         <div className="relative h-2 bg-surface-highest rounded-full overflow-hidden">
           {/* Background shimmer */}
           <div className="absolute inset-0 shimmer opacity-50" />
-          
+
           {/* Progress fill */}
           <div
             className={cn(
-              "h-full rounded-full transition-all duration-1000 ease-out relative",
+              "h-full rounded-full transition-all duration-500 ease-out relative",
               status === 'error' ? "bg-accent-red" : "progress-shimmer"
             )}
             style={{
-              width: status === 'complete' ? '100%' : `${progressPercentage}%`,
+              width: `${progressPercentage}%`,
             }}
           />
         </div>
-
-        {/* Completion message */}
-        {status === 'complete' && (
-          <div className="mt-4 p-3 rounded-xl bg-accent-green/10 border border-accent-green/20 text-center">
-            <p className="text-sm text-accent-green font-medium">
-              🎉 Your masterpiece is ready!
-            </p>
-          </div>
-        )}
 
         {/* Error message */}
         {error && (
