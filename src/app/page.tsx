@@ -951,6 +951,15 @@ export default function Home() {
       {/* Animated background with parallax */}
       <AnimatedBackground />
 
+      {/* Not Backed by YC Badge - Marketing Gimmick */}
+      <div className="relative z-20 flex justify-center pt-4">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#ff4400]/10 border border-[#ff4400]/20 hover:border-[#ff4400]/40 transition-all cursor-default group">
+          <span className="text-[10px] font-bold text-[#ff4400] tracking-wider uppercase">Not Backed by</span>
+          <span className="text-[10px] font-black text-[#ff4400] tracking-wider uppercase group-hover:scale-110 transition-transform">YC</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-[#ff4400] animate-pulse" />
+        </div>
+      </div>
+
       {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-4 max-w-6xl mx-auto">
         <span className="text-display text-xl gradient-text tracking-tight">ViralCut</span>
