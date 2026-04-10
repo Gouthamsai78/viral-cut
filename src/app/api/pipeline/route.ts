@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
 
   const hasVideo = !!videoUrl;
   const hasImages = imageUrls.length > 0;
-  const hasPrompt = prompt?.trim().length > 0;
+  const hasPrompt = prompt !== null && prompt.trim().length > 0;
 
   if (!hasVideo && !hasPrompt && !hasImages) {
     return NextResponse.json({ error: 'Provide a video, images, or describe what you want.' }, { status: 400 });
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
             details: 'Creating interpolate() functions and timing',
           });
 
-          const remotionOutput = await generateRemotionFromPrompt(prompt, imageUrls);
+          const remotionOutput = await generateRemotionFromPrompt(prompt || '', imageUrls);
 
           sendEvent({
             step: 'generating',

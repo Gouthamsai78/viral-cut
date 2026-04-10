@@ -237,83 +237,67 @@ export const useAppStore = create<AppStore>((set, get) => ({
           if (!reader) {
             throw new Error('Streaming not supported in this environment');
           }
-          
+
           const decoder = new TextDecoder();
           let buffer = '';
-          let hasError = false;
 
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-              buffer += decoder.decode(value, { stream: true });
-              const lines = buffer.split('\n');
-              buffer = lines.pop() || ''; // Keep incomplete line in buffer
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || ''; // Keep incomplete line in buffer
 
-              for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                  try {
-                    const data = JSON.parse(line.slice(6));
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
 
-                    // Check if it's an error event
-                    if (data.step === 'error' || data.error) {
-                      hasError = true;
-                      throw new Error(data.error || data.message || 'Pipeline failed');
-                    }
-
-                    // Check if it's a status update or complete data
-                    if (data.step && !data.analysis && !data.remotionOutput) {
-                      // Status update
-                      set({ currentStatus: data });
-
-                      // Update main status based on step
-                      if (data.step === 'analyzing') {
-                        set({ status: 'analyzing' });
-                      } else if (data.step === 'strategizing') {
-                        set({ status: 'strategizing' });
-                      } else if (data.step === 'generating') {
-                        set({ status: 'generating' });
-                      } else if (data.step === 'complete') {
-                        set({ status: 'complete' });
-                      }
-
-                      // Update step indicators
-                      set({
-                        steps: STEPS.map((s, i) => ({
-                          ...s,
-                          status: i < data.stepIndex ? 'complete' : i === data.stepIndex ? 'running' : 'pending',
-                        })),
-                      });
-                    } else if (data.analysis !== undefined || data.remotionOutput) {
-                      // Complete data
-                      set({
-                        status: 'complete',
-                        analysis: data.analysis ?? null,
-                        strategy: data.strategy ?? null,
-                        remotionOutput: data.remotionOutput,
-                        steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
-                      });
-                    }
-                  } catch (e) {
-                    if (hasError || (e instanceof Error && (e.message === 'Pipeline failed' || e.message.includes('Pipeline')))) {
-                      // Re-throw error events to be caught by outer try-catch
-                      throw e;
-                    }
-                    // Skip invalid JSON
-                    console.warn('Failed to parse SSE:', e);
+                  // Check if it's an error event
+                  if (data.step === 'error' || data.error) {
+                    throw new Error(data.error || data.message || 'Pipeline failed');
                   }
+
+                  // Check if it's a status update or complete data
+                  if (data.step && !data.analysis && !data.remotionOutput) {
+                    // Status update
+                    set({ currentStatus: data });
+
+                    // Update main status based on step
+                    if (data.step === 'analyzing') {
+                      set({ status: 'analyzing' });
+                    } else if (data.step === 'strategizing') {
+                      set({ status: 'strategizing' });
+                    } else if (data.step === 'generating') {
+                      set({ status: 'generating' });
+                    } else if (data.step === 'complete') {
+                      set({ status: 'complete' });
+                    }
+
+                    // Update step indicators
+                    set({
+                      steps: STEPS.map((s, i) => ({
+                        ...s,
+                        status: i < data.stepIndex ? 'complete' : i === data.stepIndex ? 'running' : 'pending',
+                      })),
+                    });
+                  } else if (data.analysis !== undefined || data.remotionOutput) {
+                    // Complete data
+                    set({
+                      status: 'complete',
+                      analysis: data.analysis ?? null,
+                      strategy: data.strategy ?? null,
+                      remotionOutput: data.remotionOutput,
+                      steps: STEPS.map(s => ({ ...s, status: 'complete' as const })),
+                    });
+                  }
+                } catch (e) {
+                  // Re-throw to be caught by outer try-catch
+                  throw e;
                 }
               }
             }
-          } catch (streamError) {
-            // If stream reading fails, propagate the error
-            if (streamError instanceof Error && streamError.message !== 'Pipeline failed' && !streamError.message.includes('Pipeline')) {
-              console.error('[SSE Stream Error]', streamError);
-              throw streamError;
-            }
-            // Re-throw pipeline errors
-            throw streamError;
           }
         } else {
           // Fallback to regular JSON response

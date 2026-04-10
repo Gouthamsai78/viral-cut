@@ -184,7 +184,7 @@ export function validateMagicBytes(buffer: Buffer, claimedType: string): boolean
   return false;
 }
 
-function checkMagicBytes(buffer: Buffer, signatures: number[][]): boolean {
+function checkMagicBytes(buffer: Buffer, signatures: ReadonlyArray<ReadonlyArray<number>>): boolean {
   return signatures.some(sig => {
     if (buffer.length < sig.length) return false;
     return sig.every((byte, i) => buffer[i] === byte);
